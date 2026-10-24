@@ -1,4 +1,4 @@
-Name: Gerar APK do Tomo
+name: Gerar APK do Tomo
 
 on:
   workflow_dispatch:
@@ -107,39 +107,6 @@ jobs:
           </resources>
           EOF
 
-          cat > proj/app/src/main/res/drawable/ic_fg.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="108dp"
-              android:height="108dp"
-              android:viewportWidth="100"
-              android:viewportHeight="100">
-              <group
-                  android:scaleX="0.75"
-                  android:scaleY="0.75"
-                  android:pivotX="50"
-                  android:pivotY="50">
-                  <path
-                      android:pathData="M62.31,16.17 A36,36 0 1,1 28.21,21.34"
-                      android:strokeColor="#FF0055"
-                      android:strokeWidth="7"
-                      android:strokeLineCap="round"
-                      android:fillColor="#00000000"/>
-                  <path
-                      android:fillColor="#00FFCC"
-                      android:pathData="M40.1,14.4 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0"/>
-              </group>
-          </vector>
-          EOF
-
-          cat > proj/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-              <background android:drawable="@color/fundo"/>
-              <foreground android:drawable="@drawable/ic_fg"/>
-          </adaptive-icon>
-          EOF
-
           cat > proj/app/src/main/java/com/tomo/app/MainActivity.kt <<'EOF'
           package com.tomo.app
 
@@ -182,7 +149,7 @@ jobs:
           sed -i "s|URL_AQUI|$SITE|" proj/app/src/main/java/com/tomo/app/MainActivity.kt
 
       - name: Compilar o APK
-        working-direction: proj
+        working-directory: proj
         run: gradle assembleDebug --no-daemon
 
       - name: Publicar o APK para download
