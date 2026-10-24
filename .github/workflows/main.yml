@@ -1,4 +1,4 @@
-name: Gerar APK do Tomo
+herename: Gerar APK do Tomo Shogun
 
 on:
   workflow_dispatch:
@@ -28,7 +28,7 @@ jobs:
         env:
           SITE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
         run: |
-          mkdir -p proj/app/src/main/java/com/tomo/app proj/app/src/main/res/values proj/app/src/main/res/drawable proj/app/src/main/res/mipmap-anydpi-v26
+          mkdir -p proj/app/src/main/java/com/tomo/app proj/app/src/main/res/values proj/app/src/main/res/xml proj/app/src/main/res/mipmap-anydpi-v26
 
           cat > proj/settings.gradle <<'EOF'
           pluginManagement {
@@ -79,12 +79,16 @@ jobs:
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
               <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+              <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+              
               <application
-                  android:label="Tomo"
+                  android:label="Tomo Shogun"
                   android:icon="@mipmap/ic_launcher"
                   android:roundIcon="@mipmap/ic_launcher"
                   android:allowBackup="false"
                   android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+                  
                   <activity
                       android:name=".MainActivity"
                       android:exported="true"
@@ -95,48 +99,75 @@ jobs:
                           <category android:name="android.intent.category.LAUNCHER"/>
                       </intent-filter>
                   </activity>
+
+                  <service
+                      android:name=".TomoAccessibilityService"
+                      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE"
+                      android:exported="true">
+                      <intent-filter>
+                          <action android:name="android.accessibilityservice.AccessibilityService"/>
+                      </intent-filter>
+                      <meta-data
+                          android:name="android.accessibilityservice"
+                          android:resource="@xml/accessibility_service_config"/>
+                  </service>
               </application>
           </manifest>
+          EOF
+
+          cat > proj/app/src/main/res/xml/accessibility_service_config.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+              android:accessibilityEventTypes="typeAllMask"
+              android:accessibilityFeedbackType="feedbackSpoken"
+              android:accessibilityFlags="flagDefault|flagRetrieveWindowContent|flagRequestTouchExplorationMode"
+              android:canPerformGestures="true"
+              android:canRetrieveWindowContent="true"
+              android:description="@string/accessibility_desc"
+              android:settingsActivity="com.tomo.app.MainActivity"/>
+          EOF
+
+          cat > proj/app/src/main/res/values/strings.xml <<'EOF'
+          <resources>
+              <string name="accessibility_desc">O Tomo Shogun precisa da acessibilidade para executar cliques automáticos na tela a seu pedido.</string>
+          </resources>
           EOF
 
           cat > proj/app/src/main/res/values/colors.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
-              <color name="fundo">#2F3E9E</color>
+              <color name="fundo">#090D16</color>
           </resources>
           EOF
 
-          cat > proj/app/src/main/res/drawable/ic_fg.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <vector xmlns:android="http://schemas.android.com/apk/res/android"
-              android:width="108dp"
-              android:height="108dp"
-              android:viewportWidth="100"
-              android:viewportHeight="100">
-              <group
-                  android:scaleX="0.75"
-                  android:scaleY="0.75"
-                  android:pivotX="50"
-                  android:pivotY="50">
-                  <path
-                      android:pathData="M62.31,16.17 A36,36 0 1,1 28.21,21.34"
-                      android:strokeColor="#FFFFFF"
-                      android:strokeWidth="7"
-                      android:strokeLineCap="round"
-                      android:fillColor="#00000000"/>
-                  <path
-                      android:fillColor="#E0B565"
-                      android:pathData="M40.1,14.4 a4.5,4.5 0 1,0 9,0 a4.5,4.5 0 1,0 -9,0"/>
-              </group>
-          </vector>
-          EOF
+          cat > proj/app/src/main/java/com/tomo/app/TomoAccessibilityService.kt <<'EOF'
+          package com.tomo.app
 
-          cat > proj/app/src/main/res/mipmap-anydpi-v26/ic_launcher.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
-              <background android:drawable="@color/fundo"/>
-              <foreground android:drawable="@drawable/ic_fg"/>
-          </adaptive-icon>
+          import android.accessibilityservice.AccessibilityService
+          import android.accessibilityservice.GestureDescription
+          import android.graphics.Path
+          import android.view.accessibility.AccessibilityEvent
+
+          class TomoAccessibilityService : AccessibilityService() {
+              companion5 object {
+                  var instance: TomoAccessibilityService? = null
+              }
+
+              override fun onServiceConnected() {
+                  super.onServiceConnected()
+                  instance = this
+              }
+
+              override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+              override fun onInterrupt() {}
+
+              fun clicarNaTela(x: Float, y: Float) {
+                  val path = Path().apply { moveTo(x, y) }
+                  val stroke = GestureDescription.StrokeDescription(path, 0, 50)
+                  val builder = GestureDescription.Builder().addStroke(stroke)
+                  dispatchGesture(builder.build(), null, null)
+              }
+          }
           EOF
 
           cat > proj/app/src/main/java/com/tomo/app/MainActivity.kt <<'EOF'
@@ -146,30 +177,15 @@ jobs:
           import android.app.Activity
           import android.content.Intent
           import android.os.Bundle
-          import android.speech.RecognizerIntent
+          import android.provider.Settings
           import android.webkit.JavascriptInterface
+          import android.webkit.PermissionRequest
           import android.webkit.WebChromeClient
           import android.webkit.WebView
           import android.webkit.WebViewClient
-          import org.json.JSONObject
 
           class MainActivity : Activity() {
               private lateinit var web: WebView
-
-              inner class Ponte {
-                  @JavascriptInterface
-                  fun falar() {
-                      runOnUiThread {
-                          val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                          i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                          i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pt-BR")
-                          try {
-                              startActivityForResult(i, 7)
-                          } catch (e: Exception) {
-                          }
-                      }
-                  }
-              }
 
               @SuppressLint("SetJavaScriptEnabled")
               override fun onCreate(savedInstanceState: Bundle?) {
@@ -177,24 +193,31 @@ jobs:
                   web = WebView(this)
                   web.settings.javaScriptEnabled = true
                   web.settings.domStorageEnabled = true
-                  web.addJavascriptInterface(Ponte(), "Android")
-                  web.webChromeClient = WebChromeClient()
-                  web.webViewClient = object : WebViewClient() {
-                      override fun onPageFinished(view: WebView?, url: String?) {
-                          view?.evaluateJavascript("(function(){var m=document.getElementById('mic');if(m){m.hidden=false;m.onclick=function(){Android.falar()};}})()", null)
+                  web.settings.mediaPlaybackRequiresUserGesture = false
+                  
+                  web.addJavascriptInterface(WebAppInterface(this), "AndroidShogun")
+
+                  web.webChromeClient = object : WebChromeClient() {
+                      override fun onPermissionRequest(request: PermissionRequest?) {
+                          request?.grant(request.resources)
                       }
                   }
+                  
+                  web.webViewClient = WebViewClient()
                   setContentView(web)
                   web.loadUrl("URL_AQUI")
               }
 
-              override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
-                  super.onActivityResult(requestCode, resultCode, data)
-                  if (requestCode == 7 && resultCode == RESULT_OK) {
-                      val t = data?.getStringArrayListExtra(RecognizerIntent.EXTRA_RESULTS)?.firstOrNull()
-                      if (!t.isNullOrEmpty()) {
-                          web.evaluateJavascript("(function(t){var i=document.getElementById('in');i.value=t;document.getElementById('go').click();})(" + JSONObject.quote(t) + ")", null)
-                      }
+              class WebAppInterface(private val activity: Activity) {
+                  @JavascriptInterface
+                  def abrirConfiguracoesAcessibilidade() {
+                      val intent = Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                      activity.startActivity(intent)
+                  }
+
+                  @JavascriptInterface
+                  def executarClique(x: Float, y: Float) {
+                      TomoAccessibilityService.instance?.clicarNaTela(x, y)
                   }
               }
 
@@ -207,12 +230,12 @@ jobs:
           sed -i "s|URL_AQUI|$SITE|" proj/app/src/main/java/com/tomo/app/MainActivity.kt
 
       - name: Compilar o APK
-        working-directory: proj
+        working-direction: proj
         run: gradle assembleDebug --no-daemon
 
       - name: Publicar o APK para download
         uses: softprops/action-gh-release@v2
         with:
           tag_name: tomo-v${{ github.run_number }}
-          name: Tomo v${{ github.run_number }}
+          name: Tomo Shogun v${{ github.run_number }}
           files: proj/app/build/outputs/apk/debug/app-debug.apk
