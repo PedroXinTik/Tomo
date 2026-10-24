@@ -1,160 +1,230 @@
-name: Gerar APK do Tomo
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Tomo RGB Pro</title>
+<style>
+:root{--bg:#090D16;--surface:#111827;--ink:#F8FAFC;--muted:#94A3B8;--line:#1F2937}
+html,body{height:100%;margin:0;box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.app{width:100%;max-width:768px;height:100%;margin:0 auto;display:flex;flex-direction:column;background:var(--bg);box-shadow:0 0 20px rgba(0,0,0,0.5)}
 
-on:
-  workflow_dispatch:
-  push:
-    branches: [main]
-    paths: ['.github/workflows/**']
+@keyframes rgbGlow {
+  0% { border-color: #ff0055; box-shadow: 0 0 12px rgba(255, 0, 85, 0.4); }
+  33% { border-color: #00ffcc; box-shadow: 0 0 12px rgba(0, 255, 204, 0.4); }
+  66% { border-color: #7b00ff; box-shadow: 0 0 12px rgba(123, 0, 255, 0.4); }
+  100% { border-color: #ff0055; box-shadow: 0 0 12px rgba(255, 0, 85, 0.4); }
+}
 
-permissions:
-  contents: write
+header{display:flex;align-items:center;gap:10px;padding:14px 16px;background:var(--surface);border-bottom:2px solid #ff0055;animation:rgbGlow 6s infinite linear;z-index:10}
+header b{flex:1;font-size:20px;letter-spacing:-0.5px;color:var(--ink);text-shadow:0 0 8px rgba(255,255,255,0.3)}
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+button{font:inherit;cursor:pointer;border:none;background:none}
+.g{background:var(--surface);border:1px solid var(--line);color:var(--ink);border-radius:999px;min-height:40px;padding:0 14px;font-weight:500;font-size:14px}
 
-      - uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: 17
+#cfg{padding:16px;background:var(--surface);border-bottom:1px solid var(--line);display:grid;gap:10px}
+#cfg input{font:inherit;padding:12px 14px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);outline:none}
+#cfg input:focus{border-color:#00ffcc}
+#cfg small{color:var(--muted);font-size:13px}
 
-      - uses: gradle/actions/setup-gradle@v4
-        with:
-          gradle-version: 8.9
+#list{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:14px;scroll-behavior:smooth}
+.m{max-width:86%;padding:12px 16px;border-radius:16px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.6}
+.u{align-self:flex-end;background:linear-gradient(135deg, #7b00ff, #ff0055);color:#fff;border-bottom-right-radius:4px;box-shadow:0 0 10px rgba(123,0,255,0.3)}
+.a{align-self:flex-start;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-bottom-left-radius:4px}
+.m img{max-width:100%;border-radius:10px;margin-top:8px;display:block}
+.n{align-self:center;text-align:center;color:var(--muted);font-size:13px;padding:6px 14px;background:var(--surface);border-radius:20px;border:1px solid var(--line)}
+.v{margin:auto;text-align:center;color:var(--muted);padding:20px}
+.v h2{color:var(--ink);margin-bottom:8px;font-size:22px;text-shadow:0 0 10px rgba(0,255,204,0.4)}
 
-      - name: Criar o projeto Android
-        env:
-          SITE: https://${{ github.repository_owner }}.github.io/${{ github.event.repository.name }}/
-        run: |
-          mkdir -p proj/app/src/main/java/com/tomo/app proj/app/src/main/res/values proj/app/src/main/res/drawable proj/app/src/main/res/mipmap-anydpi-v26
+.preview-container{padding:8px 16px;background:var(--surface);border-top:1px solid var(--line);display:flex;align-items:center;gap:10px}
+.preview-thumb{position:relative;width:60px;height:60px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+.preview-thumb img{width:100%;height:100%;object-fit:cover}
+.preview-thumb button{position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.6);color:#fff;border-radius:50%;width:20px;height:20px;font-size:12px;display:flex;align-items:center;justify-content:center}
 
-          cat > proj/settings.gradle <<'EOF'
-          pluginManagement {
-              repositories { google(); mavenCentral(); gradlePluginPortal() }
-          }
-          dependencyResolutionManagement {
-              repositories { google(); mavenCentral() }
-          }
-          rootProject.name = "Tomo"
-          include ":app"
-          EOF
+.c{display:flex;align-items:flex-end;gap:8px;padding:12px 16px;background:var(--surface);border-top:1px solid var(--line)}
+textarea{flex:1;resize:none;max-height:120px;min-height:24px;border:1px solid var(--line);border-radius:20px;background:var(--bg);color:var(--ink);padding:10px 16px;font:inherit;font-size:15px;outline:none}
+textarea:focus{border-color:#00ffcc}
 
-          cat > proj/build.gradle <<'EOF'
-          plugins {
-              id 'com.android.application' version '8.5.2' apply false
-              id 'org.jetbrains.kotlin.android' version '1.9.24' apply false
-          }
-          EOF
+@keyframes rgbButton {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
 
-          cat > proj/gradle.properties <<'EOF'
-          org.gradle.jvmargs=-Xmx2g
-          EOF
+.r{flex:none;width:44px;height:44px;border-radius:50%;border:none;background:linear-gradient(45deg, #ff0055, #7b00ff, #00ffcc);background-size:300% 300%;animation:rgbButton 4s ease infinite;color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px rgba(0,255,204,0.3)}
+.r.on{background:#EF4444;animation:pulse 1.5s infinite;outline:3px solid #ff0055}
+@keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.06)}100%{transform:scale(1)}}
+</style>
+</head>
+<body>
+<div class="app">
+  <header>
+    <b>Tomo RGB</b>
+    <button class="g" id="bv" type="button">🔊</button>
+    <button class="g" id="bc" type="button">⚙</button>
+    <button class="g" id="bn" type="button">Nova</button>
+  </header>
+  <div id="cfg" hidden>
+    <input id="key" type="password" placeholder="Cole sua chave do Gemini aqui" autocomplete="off">
+    <input id="model" type="text" placeholder="Modelo (ex: gemini-2.5-flash-lite)">
+    <button class="g" id="bs" type="button" style="background:linear-gradient(45deg,#ff0055,#7b00ff);color:#fff">Salvar</button>
+    <small>A chave fica salva apenas no seu celular.</small>
+  </div>
+  <main id="list"></main>
 
-          cat > proj/app/build.gradle <<'EOF'
-          plugins {
-              id 'com.android.application'
-              id 'org.jetbrains.kotlin.android'
-          }
-          android {
-              namespace 'com.tomo.app'
-              compileSdk 34
-              defaultConfig {
-                  applicationId 'com.tomo.app'
-                  minSdk 26
-                  targetSdk 34
-                  versionCode 1
-                  versionName '1.0'
-              }
-              compileOptions {
-                  sourceCompatibility JavaVersion.VERSION_17
-                  targetCompatibility JavaVersion.VERSION_17
-              }
-              kotlinOptions { jvmTarget = '17' }
-          }
-          EOF
+  <div id="previewBox" class="preview-container" hidden>
+    <div class="preview-thumb">
+      <img id="imgPreview" src="" alt="Anexo">
+      <button id="removeImg">✕</button>
+    </div>
+    <small style="color:var(--muted)">Imagem anexada</small>
+  </div>
 
-          cat > proj/app/src/main/AndroidManifest.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
-              <uses-permission android:name="android.permission.INTERNET"/>
-              <uses-permission android:name="android.permission.RECORD_AUDIO"/>
-              <application
-                  android:label="Tomo"
-                  android:icon="@mipmap/ic_launcher"
-                  android:roundIcon="@mipmap/ic_launcher"
-                  android:allowBackup="false"
-                  android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
-                  <activity
-                      android:name=".MainActivity"
-                      android:exported="true"
-                      android:configChanges="orientation|screenSize|keyboardHidden"
-                      android:windowSoftInputMode="adjustResize">
-                      <intent-filter>
-                          <action android:name="android.intent.action.MAIN"/>
-                          <category android:name="android.intent.category.LAUNCHER"/>
-                      </intent-filter>
-                  </activity>
-              </application>
-          </manifest>
-          EOF
+  <div class="c">
+    <input type="file" id="fileInput" accept="image/*" hidden>
+    <button class="r" id="imgBtn" type="button" title="Enviar Imagem" style="font-size:16px;">📷</button>
+    <textarea id="in" rows="1" placeholder="Digite ou fale..."></textarea>
+    <button class="r" id="mic" type="button" aria-label="Falar">🎤</button>
+    <button class="r" id="go" type="button" aria-label="Enviar">➤</button>
+  </div>
+</div>
+<script>
+var SYS="Você é o Tomo, um assistente de IA amigável com visual gamer RGB em um app de celular. Responda em português do Brasil, de forma curta, clara e amigável.";
+var $=function(s){return document.querySelector(s)};
+function lg(k){try{return localStorage.getItem(k)}catch(e){return null}}
+function ls(k,v){try{localStorage.setItem(k,v)}catch(e){}}
+var msgs=[];try{msgs=JSON.parse(lg("tomo:msgs")||"[]")}catch(e){msgs=[]}
+var busy=false,nota="",voz=lg("tomo:voz")==="1";
+var currentImageData=null;
 
-          cat > proj/app/src/main/res/values/colors.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <color name="fundo">#090D16</color>
-          </resources>
-          EOF
+$("#key").value=lg("tomo:key")||"";
+$("#model").value=lg("tomo:model")||"gemini-2.5-flash-lite";
+if(!lg("tomo:key"))$("#cfg").hidden=false;
+$("#bv").style.opacity=voz?1:.4;
 
-          cat > proj/app/src/main/java/com/tomo/app/MainActivity.kt <<'EOF'
-          package com.tomo.app
+function render(extra){
+  var l=$("#list");l.textContent="";
+  if(!msgs.length){
+    var v=document.createElement("div");v.className="v";
+    v.innerHTML="<h2>Tomo RGB Online</h2><p>Mande uma foto, use o microfone ou digite.</p>";
+    l.appendChild(v);
+  }
+  msgs.forEach(function(m){
+    var d=document.createElement("div");d.className="m "+(m.role==="user"?"u":"a");
+    if(typeof m.text === "string"){
+      d.textContent=m.text;
+    } else if(Array.isArray(m.text)){
+      m.text.forEach(function(part){
+        if(part.text){let p=document.createElement("div");p.textContent=part.text;d.appendChild(p);}
+        if(part.inline_data){let img=document.createElement("img");img.src="data:"+part.inline_data.mime_type+";base64,"+part.inline_data.data;d.appendChild(img);}
+      });
+    }
+    l.appendChild(d);
+  });
+  if(extra){var p=document.createElement("div");p.className="n";p.textContent=extra;l.appendChild(p)}
+  if(nota){var n=document.createElement("div");n.className="n";n.textContent=nota;l.appendChild(n)}
+  l.scrollTop=l.scrollHeight;
+}
+function falar(t){
+  if(!voz||!window.speechSynthesis)return;
+  speechSynthesis.cancel();
+  var u=new SpeechSynthesisUtterance(t);u.lang="pt-BR";speechSynthesis.speak(u);
+}
+async function enviar(texto){
+  texto=(texto||"").trim();
+  if(!texto && !currentImageData)return;
+  if(busy)return;
+  
+  var rawKey=lg("tomo:key")||"";
+  var rawModel=lg("tomo:model")||"gemini-2.5-flash-lite";
+  var key=rawKey.replace(/[^\x20-\x7E]/g, "").trim();
+  var model=rawModel.replace(/[^\x20-\x7E]/g, "").trim();
 
-          import android.annotation.SuppressLint
-          import android.app.Activity
-          import android.os.Bundle
-          import android.webkit.PermissionRequest
-          import android.webkit.WebChromeClient
-          import android.webkit.WebView
-          import android.webkit.WebViewClient
+  nota="";
+  if(!key){nota="Cole sua chave do Gemini em ⚙ primeiro.";$("#cfg").hidden=false;render();return}
 
-          class MainActivity : Activity() {
-              private lateinit var web: WebView
+  var userParts=[];
+  if(currentImageData){
+    userParts.push({inline_data:{mime_type:currentImageData.mime, data:currentImageData.base64}});
+  }
+  if(texto){
+    userParts.push({text:texto});
+  }
 
-              @SuppressLint("SetJavaScriptEnabled")
-              override fun onCreate(savedInstanceState: Bundle?) {
-                  super.onCreate(savedInstanceState)
-                  web = WebView(this)
-                  web.settings.javaScriptEnabled = true
-                  web.settings.domStorageEnabled = true
-                  web.settings.mediaPlaybackRequiresUserGesture = false
-                  
-                  web.webChromeClient = object : WebChromeClient() {
-                      override fun onPermissionRequest(request: PermissionRequest?) {
-                          request?.grant(request.resources)
-                      }
-                  }
-                  
-                  web.webViewClient = WebViewClient()
-                  setContentView(web)
-                  web.loadUrl("URL_AQUI")
-              }
+  msgs.push({role:"user", text: userParts.length===1 && userParts[0].text ? userParts[0].text : userParts});
+  $("#in").value="";$("#in").style.height="auto";
+  currentImageData=null; $("#previewBox").hidden=true;
+  
+  busy=true;render("Pensando...");
+  try{
+    var formattedContents=msgs.slice(-15).map(function(m){
+      if(typeof m.text === "string"){
+        return {role: m.role==="user"?"user":"model", parts:[{text: m.text}]};
+      } else {
+        return {role: m.role==="user"?"user":"model", parts: m.text};
+      }
+    });
 
-              override fun onBackPressed() {
-                  if (web.canGoBack()) web.goBack() else super.onBackPressed()
-              }
-          }
-          EOF
+    var r=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent",{
+      method:"POST",
+      headers:{"Content-Type":"application/json","x-goog-api-key":key},
+      body:JSON.stringify({systemInstruction:{parts:[{text:SYS}]},contents:formattedContents})
+    });
+    var j=await r.json();
+    if(!r.ok)throw new Error((j.error&&j.error.message)||("Erro "+r.status));
+    var t="(sem resposta)";
+    if(j.candidates&&j.candidates[0]&&j.candidates[0].content){
+      t=j.candidates[0].content.parts.map(function(p){return p.text||""}).join("");
+    }
+    msgs.push({role:"model",text:t});falar(t);
+  }catch(e){
+    msgs.pop();nota="Erro: "+e.message;
+  }
+  busy=false;ls("tomo:msgs",JSON.stringify(msgs.slice(-30)));render();
+}
 
-          sed -i "s|URL_AQUI|$SITE|" proj/app/src/main/java/com/tomo/app/MainActivity.kt
+$("#go").onclick=function(){enviar($("#in").value)};
+$("#in").addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();enviar(this.value)}});
+$("#in").addEventListener("input",function(){this.style.height="auto";this.style.height=Math.min(this.scrollHeight,120)+"px"});
+$("#bc").onclick=function(){$("#cfg").hidden=!$("#cfg").hidden};
+$("#bs").onclick=function(){ls("tomo:key",$("#key").value.trim());ls("tomo:model",$("#model").value.trim());$("#cfg").hidden=true;nota="Salvo!";render()};
+$("#bn").onclick=function(){msgs=[];nota="Nova conversa.";ls("tomo:msgs","[]");render()};
+$("#bv").onclick=function(){voz=!voz;ls("tomo:voz",voz?"1":"0");this.style.opacity=voz?1:.4;nota=voz?"Voz ativada":"Voz desativada";if(!voz&&window.speechSynthesis)speechSynthesis.cancel();render()};
 
-      - name: Compilar o APK
-        working-directory: proj
-        run: gradle assembleDebug --no-daemon
+// Envio de Imagens
+$("#imgBtn").onclick=function(){$("#fileInput").click()};
+$("#fileInput").onchange=function(e){
+  var file=e.target.files[0];
+  if(!file)return;
+  var reader=new FileReader();
+  reader.onload=function(evt){
+    var base64Full=evt.target.result;
+    var mime=base64Full.split(";")[0].split(":")[1];
+    var base64Data=base64Full.split(",")[1];
+    currentImageData={mime:mime, base64:base64Data};
+    $("#imgPreview").src=base64Full;
+    $("#previewBox").hidden=false;
+  };
+  reader.readAsDataURL(file);
+};
+$("#removeImg").onclick=function(){
+  currentImageData=null;$("#previewBox").hidden=true;$("#fileInput"].value="";
+};
 
-      - name: Publicar o APK para download
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: tomo-v${{ github.run_number }}
-          name: Tomo v${{ github.run_number }}
-          files: proj/app/build/outputs/apk/debug/app-debug.apk
+// Microfone Web Integrado (Sem tela pop-up do Android)
+var SR=window.SpeechRecognition||window.webkitSpeechRecognition,rec=null,ouvindo=false;
+$("#mic").onclick=function(){
+  if(!SR){alert("Reconhecimento de voz não suportado neste dispositivo.");return;}
+  if(ouvindo){if(rec)rec.stop();return}
+  rec=new SR();rec.lang="pt-BR";rec.interimResults=false;rec.continuous=false;
+  rec.onstart=function(){ouvindo=true;$("#mic").classList.add("on");nota="Ouvindo...";render()};
+  rec.onend=function(){ouvindo=false;$("#mic").classList.remove("on");nota="";render()};
+  rec.onerror=function(e){nota="Microfone: "+e.error;render()};
+  rec.onresult=function(e){enviar(e.results[0][0].transcript)};
+  rec.start();
+};
+render();
+</script>
+</body>
+</html>
