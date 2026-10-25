@@ -1,3 +1,460 @@
+
+name: Gerar APK do Agente
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths: ['.github/workflows/**']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.9
+
+      - name: Criar o projeto Android
+        run: |
+          mkdir -p proj/app/src/main/java/com/tomo/agente proj/app/src/main/res/xml proj/app/src/main/res/values
+
+          cat > proj/settings.gradle <<'EOF'
+          pluginManagement {
+              repositories { google(); mavenCentral(); gradlePluginPortal() }
+          }
+          dependencyResolutionManagement {
+              repositories { google(); mavenCentral() }
+          }
+          rootProject.name = "Agente"
+          include ":app"
+          EOF
+
+          cat > proj/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application' version '8.5.2' apply false
+              id 'org.jetbrains.kotlin.android' version '1.9.24' apply false
+          }
+          EOF
+
+          cat > proj/gradle.properties <<'EOF'
+          org.gradle.jvmargs=-Xmx2g
+          EOF
+
+          cat > proj/app/build.gradle <<'EOF'
+          plugins {
+              id 'com.android.application'
+              id 'org.jetbrains.kotlin.android'
+          }
+          android {
+              namespace 'com.tomo.agente'
+              compileSdk 34
+              defaultConfig {
+                  applicationId 'com.tomo.agente'
+                  minSdk 30
+                  targetSdk 34
+                  versionCode 6
+                  versionName '6.0'
+              }
+              compileOptions {
+                  sourceCompatibility JavaVersion.VERSION_17
+                  targetCompatibility JavaVersion.VERSION_17
+              }
+              kotlinOptions { jvmTarget = '17' }
+          }
+          EOF
+
+          cat > proj/app/src/main/AndroidManifest.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+              <uses-permission android:name="android.permission.INTERNET"/>
+              <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+              <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+              <queries>
+                  <intent>
+                      <action android:name="android.speech.RecognitionService"/>
+                  </intent>
+                  <intent>
+                      <action android:name="android.intent.action.TTS_SERVICE"/>
+                  </intent>
+              </queries>
+              <application
+                  android:label="Agente"
+                  android:allowBackup="false"
+                  android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
+                  <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
+                      <intent-filter>
+                          <action android:name="android.intent.action.MAIN"/>
+                          <category android:name="android.intent.category.LAUNCHER"/>
+                      </intent-filter>
+                  </activity>
+                  <service
+                      android:name=".AgenteService"
+                      android:exported="true"
+                      android:label="Agente"
+                      android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+                      <intent-filter>
+                          <action android:name="android.accessibilityservice.AccessibilityService"/>
+                      </intent-filter>
+                      <meta-data
+                          android:name="android.accessibilityservice"
+                          android:resource="@xml/accessibility_config"/>
+                  </service>
+              </application>
+          </manifest>
+          EOF
+
+          cat > proj/app/src/main/res/xml/accessibility_config.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
+              android:accessibilityEventTypes="typeWindowStateChanged"
+              android:accessibilityFeedbackType="feedbackGeneric"
+              android:accessibilityFlags="flagDefault"
+              android:canPerformGestures="true"
+              android:canTakeScreenshot="true"
+              android:description="@string/desc"
+              android:notificationTimeout="100"/>
+          EOF
+
+          cat > proj/app/src/main/res/values/strings.xml <<'EOF'
+          <?xml version="1.0" encoding="utf-8"?>
+          <resources>
+              <string name="desc">Permite que o Agente veja a tela por captura e toque nela quando você pedir por voz.</string>
+          </resources>
+          EOF
+
+          cat > proj/app/src/main/java/com/tomo/agente/AgenteService.kt <<'EOF'
+          package com.tomo.agente
+
+          import android.accessibilityservice.AccessibilityService
+          import android.accessibilityservice.GestureDescription
+          import android.content.Context
+          import android.content.Intent
+          import android.graphics.Bitmap
+          import android.graphics.BitmapFactory
+          import android.graphics.Color
+          import android.graphics.Outline
+          import android.graphics.Path
+          import android.graphics.PixelFormat
+          import android.graphics.drawable.GradientDrawable
+          import android.os.Bundle
+          import android.os.Handler
+          import android.os.Looper
+          import android.provider.Settings
+          import android.speech.RecognitionListener
+          import android.speech.RecognizerIntent
+          import android.speech.SpeechRecognizer
+          import android.speech.tts.TextToSpeech
+          import android.util.Base64
+          import android.view.Display
+          import android.view.Gravity
+          import android.view.MotionEvent
+          import android.view.View
+          import android.view.ViewOutlineProvider
+          import android.view.WindowManager
+          import android.view.accessibility.AccessibilityEvent
+          import android.widget.FrameLayout
+          import android.widget.ImageView
+          import android.widget.TextView
+          import android.widget.Toast
+          import org.json.JSONArray
+          import org.json.JSONObject
+          import java.io.ByteArrayOutputStream
+          import java.io.File
+          import java.net.HttpURLConnection
+          import java.net.URL
+          import java.util.Locale
+          import java.util.concurrent.CountDownLatch
+          import java.util.concurrent.TimeUnit
+
+          class AgenteService : AccessibilityService() {
+              companion object {
+                  var instance: AgenteService? = null
+                  @Volatile var rodando = false
+              }
+
+              private val ui = Handler(Looper.getMainLooper())
+              private var caixa: View? = null
+              private var selo: TextView? = null
+              private var tts: TextToSpeech? = null
+              private var reconhecedor: SpeechRecognizer? = null
+              @Volatile private var estado = 0
+              @Volatile private var sessao = 0
+              @Volatile private var observando = false
+              private var ultimoToque = 0L
+              private val quadros = ArrayList<ByteArray>()
+              private val tempos = ArrayList<Long>()
+
+              private val sistema = """Você controla um celular Android olhando capturas da tela. Você recebe a fala do usuário, o que você já aprendeu e a imagem da tela.
+          Primeiro descubra o que o usuário quer. Há três casos:
+          1) PERGUNTA (ele quer saber algo, por exemplo: o que é isso, qual é o melhor caminho, o que você vê): NÃO toque em nada. Olhe a imagem e responda com "fim", na mensagem.
+          2) PEDIDO DE AÇÃO (por exemplo: abra, toque, segure, role, vá para, use): execute na tela, passo a passo.
+          3) INFORMAÇÃO (ele só conta ou ensina algo, sem pergunta nem pedido): responda "fim" com a mensagem "Anotado" e coloque a informação em "licao".
+          O app envia um palpite do tipo da frase, mas você decide pelo sentido.
+          Responda SOMENTE com um JSON de uma ação. As coordenadas x e y vão de 0 a 1000 sobre a imagem (0,0 é o canto superior esquerdo e 1000,1000 o canto inferior direito).
+          {"acao":"tocar","x":N,"y":N}
+          {"acao":"segurar","x":N,"y":N,"ms":N}
+          {"acao":"deslizar","x1":N,"y1":N,"x2":N,"y2":N}
+          {"acao":"voltar"}
+          {"acao":"inicio"}
+          {"acao":"esperar"}
+          {"acao":"fim","mensagem":"resposta curta em português, no máximo duas frases","licao":"dica curta para a próxima vez, ou vazio"}
+          A ação "segurar" pressiona e mantém por ms milissegundos (de 300 a 5000).
+          Você pode receber imagens anteriores da tela, com o tempo em segundos atrás. A última imagem é sempre a tela atual.
+          Use "fim" quando a tarefa estiver pronta ou for impossível. Use as dicas do que você já aprendeu.
+          Inclua "licao" só quando a tarefa deu certo e a dica for realmente útil.
+          Nunca faça compras, pagamentos, envio de mensagens, ligações ou exclusões, a menos que a tarefa peça exatamente isso.
+          Se aparecer senha, pagamento ou dados sensíveis, use "fim"."""
+
+              override fun onServiceConnected() {
+                  instance = this
+                  tts = TextToSpeech(this) { s ->
+                      if (s == TextToSpeech.SUCCESS) tts?.language = Locale("pt", "BR")
+                  }
+                  mostrarBotao()
+              }
+
+              override fun onDestroy() {
+                  rodando = false
+                  observando = false
+                  esconderBotao()
+                  reconhecedor?.destroy()
+                  tts?.shutdown()
+                  instance = null
+                  super.onDestroy()
+              }
+
+              override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
+
+              override fun onInterrupt() {}
+
+              private fun aviso(m: String) {
+                  ui.post { Toast.makeText(this, m, Toast.LENGTH_LONG).show() }
+              }
+
+              private fun falar(t: String) {
+                  ui.post { tts?.speak(t, TextToSpeech.QUEUE_FLUSH, null, "agente") }
+              }
+
+              private fun rotulo(): String {
+                  return if (estado == 1) "🔴" else if (estado == 2) "⏳" else if (estado == 3) "…" else if (observando) "👁" else "🎤"
+              }
+
+              private fun definirEstado(e: Int) {
+                  estado = e
+                  ui.post { selo?.text = rotulo() }
+              }
+
+              private fun lerNotas(): List<String> {
+                  val s = getSharedPreferences("agente", Context.MODE_PRIVATE).getString("notas", "") ?: ""
+                  return s.split("\n").filter { it.isNotBlank() }
+              }
+
+              private fun gravarNotas(l: List<String>) {
+                  getSharedPreferences("agente", Context.MODE_PRIVATE).edit().putString("notas", l.takeLast(30).joinToString("\n")).apply()
+              }
+
+              private fun salvarNota(t: String) {
+                  val l = ArrayList(lerNotas())
+                  val limpa = t.replace("\n", " ").trim().take(160)
+                  if (limpa.isNotEmpty() && !l.contains(limpa)) l.add(limpa)
+                  gravarNotas(l)
+              }
+
+              private fun carregarAvatar(): Bitmap? {
+                  val f = File(filesDir, "avatar.png")
+                  if (!f.exists()) return null
+                  return BitmapFactory.decodeFile(f.absolutePath)
+              }
+
+              fun recriarBotao() {
+                  esconderBotao()
+                  mostrarBotao()
+              }
+
+              fun mostrarBotao() {
+                  ui.post {
+                      if (caixa != null) return@post
+                      if (!Settings.canDrawOverlays(this)) {
+                          aviso("Permita exibir sobre outros apps, no app Agente.")
+                          return@post
+                      }
+                      val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                      val av = carregarAvatar()
+                      val c = FrameLayout(this)
+                      val img = ImageView(this)
+                      img.scaleType = ImageView.ScaleType.CENTER_CROP
+                      if (av != null) img.setImageBitmap(av) else img.setBackgroundColor(Color.parseColor("#2F3E9E"))
+                      img.outlineProvider = object : ViewOutlineProvider() {
+                          override fun getOutline(view: View, outline: Outline) {
+                              outline.setOval(0, 0, view.width, view.height)
+                          }
+                      }
+                      img.clipToOutline = true
+                      c.addView(img, FrameLayout.LayoutParams(150, 150))
+                      val s = TextView(this)
+                      s.gravity = Gravity.CENTER
+                      if (av != null) {
+                          s.textSize = 14f
+                          val bg = GradientDrawable()
+                          bg.shape = GradientDrawable.OVAL
+                          bg.setColor(Color.parseColor("#CC141B34"))
+                          s.background = bg
+                          c.addView(s, FrameLayout.LayoutParams(64, 64, Gravity.BOTTOM or Gravity.END))
+                      } else {
+                          s.textSize = 26f
+                          c.addView(s, FrameLayout.LayoutParams(150, 150, Gravity.CENTER))
+                      }
+                      s.text = rotulo()
+                      val p = WindowManager.LayoutParams(
+                          150, 150,
+                          WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                          WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                          PixelFormat.TRANSLUCENT
+                      )
+                      p.gravity = Gravity.TOP or Gravity.START
+                      p.x = 20
+                      p.y = 500
+                      var iniX = 0
+                      var iniY = 0
+                      var toqueX = 0f
+                      var toqueY = 0f
+                      var moveu = false
+                      c.setOnTouchListener { view, e ->
+                          when (e.action) {
+                              MotionEvent.ACTION_DOWN -> {
+                                  iniX = p.x
+                                  iniY = p.y
+                                  toqueX = e.rawX
+                                  toqueY = e.rawY
+                                  moveu = false
+                              }
+                              MotionEvent.ACTION_MOVE -> {
+                                  val dx = e.rawX - toqueX
+                                  val dy = e.rawY - toqueY
+                                  if (Math.abs(dx) > 25 || Math.abs(dy) > 25) moveu = true
+                                  if (moveu) {
+                                      p.x = iniX + dx.toInt()
+                                      p.y = iniY + dy.toInt()
+                                      wm.updateViewLayout(view, p)
+                                  }
+                              }
+                              MotionEvent.ACTION_UP -> {
+                                  if (!moveu) aoTocarBotao()
+                              }
+                          }
+                          true
+                      }
+                      wm.addView(c, p)
+                      caixa = c
+                      selo = s
+                  }
+              }
+
+              fun esconderBotao() {
+                  ui.post {
+                      val v = caixa
+                      if (v != null) {
+                          val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                          try {
+                              wm.removeView(v)
+                          } catch (e: Exception) {
+                          }
+                          caixa = null
+                          selo = null
+                      }
+                  }
+              }
+
+              private fun aoTocarBotao() {
+                  val agora = System.currentTimeMillis()
+                  if (agora - ultimoToque < 700) return
+                  ultimoToque = agora
+                  if (estado == 0) {
+                      ouvir()
+                  } else if (estado == 1) {
+                      reconhecedor?.stopListening()
+                  } else if (estado == 2) {
+                      rodando = false
+                      falar("Parei.")
+                  }
+              }
+
+              fun iniciarObservacao() {
+                  if (observando) return
+                  observando = true
+                  definirEstado(estado)
+                  Thread {
+                      while (observando) {
+                          try {
+                              if (estado != 2) {
+                                  val b = capturar()
+                                  if (b != null) {
+                                      val bytes = comprimir(b, 480)
+                                      synchronized(quadros) {
+                                          quadros.add(bytes)
+                                          tempos.add(System.currentTimeMillis())
+                                          while (quadros.size > 4) {
+                                              quadros.removeAt(0)
+                                              tempos.removeAt(0)
+                                          }
+                                      }
+                                  }
+                              }
+                              Thread.sleep(5000)
+                          } catch (e: Exception) {
+                          }
+                      }
+                  }.start()
+              }
+
+              fun pararObservacao() {
+                  observando = false
+                  synchronized(quadros) {
+                      quadros.clear()
+                      tempos.clear()
+                  }
+                  definirEstado(estado)
+              }
+
+              private fun parecePergunta(t: String): Boolean {
+                  val b = t.lowercase().trim()
+                  if (b.endsWith("?")) return true
+                  val inicios = listOf("o que", "qual", "quais", "quem", "quando", "onde", "como", "por que", "porque", "por quê", "quanto", "quantos", "quantas", "será", "você sabe", "voce sabe", "me diga", "me fala", "me explique", "explique", "diga")
+                  for (i in inicios) {
+                      if (b.startsWith(i)) return true
+                  }
+                  return false
+              }
+
+              private fun tratarComando(t: String) {
+                  val baixa = t.lowercase().trim()
+                  if (baixa.contains("pare de observar") || baixa.contains("pare de olhar") || baixa.contains("não observe")) {
+                      pararObservacao()
+                      falar("Parei de observar.")
+                      definirEstado(0)
+                      return
+                  }
+                  if (baixa.startsWith("observe") || baixa.contains("fique de olho") || baixa.contains("comece a observar")) {
+                      iniciarObservacao()
+                      falar("Observando a tela a cada 5 segundos.")
+                      definirEstado(0)
+                      return
+                  }
+                  if (baixa.contains("esqueça tudo") || baixa.contains("esqueca tudo")) {
+                      gravarNotas(emptyList())
+                      falar("Esqueci tudo.")
+                      defin
 name: Gerar APK do Agente
 
 on:
