@@ -3,126 +3,69 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<title>Tomo Shogun RGB</title>
+<title>Tomo</title>
 <style>
-:root{--bg:#090D16;--surface:#111827;--ink:#F8FAFC;--muted:#94A3B8;--line:#1F2937}
-html,body{height:100%;margin:0;box-sizing:border-box}
-body{background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-.app{width:100%;max-width:768px;height:100%;margin:0 auto;display:flex;flex-direction:column;background:var(--bg);box-shadow:0 0 20px rgba(0,0,0,0.5)}
-
-@keyframes rgbGlow {
-  0% { border-color: #ff0055; box-shadow: 0 0 12px rgba(255, 0, 85, 0.4); }
-  33% { border-color: #00ffcc; box-shadow: 0 0 12px rgba(0, 255, 204, 0.4); }
-  66% { border-color: #7b00ff; box-shadow: 0 0 12px rgba(123, 0, 255, 0.4); }
-  100% { border-color: #ff0055; box-shadow: 0 0 12px rgba(255, 0, 85, 0.4); }
-}
-
-header{display:flex;align-items:center;gap:8px;padding:12px 16px;background:var(--surface);border-bottom:2px solid #ff0055;animation:rgbGlow 6s infinite linear;z-index:10}
-header b{flex:1;font-size:20px;letter-spacing:-0.5px;color:var(--ink);text-shadow:0 0 8px rgba(255,255,255,0.3)}
-
-button{font:inherit;cursor:pointer;border:none;background:none}
-.g{background:var(--surface);border:1px solid var(--line);color:var(--ink);border-radius:999px;min-height:40px;padding:0 12px;font-weight:500;font-size:14px}
-
-#cfg{padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--line);display:grid;gap:8px}
-#cfg input{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--bg);color:var(--ink);outline:none}
-#cfg input:focus{border-color:#00ffcc}
-#cfg small{color:var(--muted);font-size:13px}
-
-#list{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px;scroll-behavior:smooth}
-.m{max-width:86%;padding:10px 14px;border-radius:18px;white-space:pre-wrap;overflow-wrap:anywhere;font-size:15px;line-height:1.6}
-.u{align-self:flex-end;background:linear-gradient(135deg, #7b00ff, #ff0055);color:#fff;border-bottom-right-radius:4px;box-shadow:0 0 10px rgba(123,0,255,0.3)}
-.a{align-self:flex-start;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-bottom-left-radius:4px}
-.m img{max-width:100%;border-radius:10px;margin-top:8px;display:block}
-.n{align-self:center;text-align:center;color:var(--muted);font-size:14px;padding:4px 12px;background:var(--surface);border-radius:12px;border:1px solid var(--line)}
-.v{margin:auto;text-align:center;color:var(--muted);padding:20px}
-.v h2{color:var(--ink);margin-bottom:8px;font-size:22px;text-shadow:0 0 10px rgba(0,255,204,0.4)}
-
-.preview-container{padding:8px 16px;background:var(--surface);border-top:1px solid var(--line);display:flex;align-items:center;gap:10px}
-.preview-thumb{position:relative;width:50px;height:50px;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
-.preview-thumb img{width:100%;height:100%;object-fit:cover}
-.preview-thumb button{position:absolute;top:2px;right:2px;background:rgba(0,0,0,0.6);color:#fff;border-radius:50%;width:18px;height:18px;font-size:10px;display:flex;align-items:center;justify-content:center}
-
-.c{display:flex;align-items:flex-end;gap:8px;padding:10px 12px 12px;background:var(--surface);border-top:1px solid var(--line)}
-textarea{flex:1;resize:none;max-height:140px;border:1px solid var(--line);border-radius:22px;background:var(--bg);color:var(--ink);padding:12px 16px;font:inherit;font-size:16px;outline:none}
-textarea:focus{border-color:#00ffcc}
-
-@keyframes rgbButton {
-  0% { background-position: 0% 50%; }
-  50% { background-position: 100% 50%; }
-  100% { background-position: 0% 50%; }
-}
-
-.r{flex:none;width:44px;height:44px;border-radius:50%;border:0;background:linear-gradient(45deg, #ff0055, #7b00ff, #00ffcc);background-size:300% 300%;animation:rgbButton 4s ease infinite;color:#fff;font-size:18px;display:flex;align-items:center;justify-content:center;box-shadow:0 0 10px rgba(0,255,204,0.3)}
-.r.on{background:#EF4444;animation:pulse 1.5s infinite;outline:3px solid #ff0055}
-@keyframes pulse{0%{transform:scale(1)}50%{transform:scale(1.06)}100%{transform:scale(1)}}
+:root{--bg:#EEF1F8;--surface:#fff;--ink:#141B34;--muted:#5B6485;--accent:#2F3E9E;--on:#fff;--line:#D5DAEA}
+@media (prefers-color-scheme:dark){:root{--bg:#0E1328;--surface:#192140;--ink:#E8EBF7;--muted:#98A1C4;--accent:#8E9CFF;--on:#0E1328;--line:#2A3566}}
+html,body{height:100%;margin:0}
+body{background:var(--bg);color:var(--ink);font:16px/1.5 system-ui,sans-serif;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+.app{height:100%;display:flex;flex-direction:column;max-width:720px;margin:0 auto}
+header{display:flex;align-items:center;gap:8px;padding:12px 16px;border-bottom:1px solid var(--line)}
+header b{flex:1;font-size:22px}
+button{font:inherit;cursor:pointer}
+.g{background:none;border:1px solid var(--line);color:var(--ink);border-radius:999px;min-height:40px;padding:0 12px}
+#cfg{padding:12px 16px;border-bottom:1px solid var(--line);display:grid;gap:8px}
+#cfg input{font:inherit;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink)}
+#cfg small{color:var(--muted)}
+#list{flex:1;overflow-y:auto;padding:16px;display:flex;flex-direction:column;gap:12px}
+.m{max-width:86%;padding:10px 14px;border-radius:18px;white-space:pre-wrap;overflow-wrap:anywhere}
+.u{align-self:flex-end;background:var(--accent);color:var(--on)}
+.a{align-self:flex-start;background:var(--surface);border:1px solid var(--line)}
+.n{align-self:center;text-align:center;color:var(--muted);font-size:14px}
+.v{margin:auto;text-align:center;color:var(--muted)}
+.c{display:flex;align-items:flex-end;gap:8px;padding:10px 12px 12px;border-top:1px solid var(--line)}
+textarea{flex:1;resize:none;max-height:140px;border:1px solid var(--line);border-radius:22px;background:var(--surface);color:var(--ink);padding:12px 16px;font:inherit;font-size:16px}
+.r{flex:none;width:48px;height:48px;border-radius:50%;border:0;background:var(--accent);color:var(--on);font-size:20px}
+.r.on{outline:3px solid #d33}
 </style>
 </head>
 <body>
 <div class="app">
   <header>
-    <b>Tomo Shogun</b>
-    <button class="g" id="bv" type="button" title="Voz">🔊</button>
-    <button class="g" id="bc" type="button" title="Configurações">⚙</button>
-    <button class="g" id="bn" type="button" title="Nova Conversa">Nova</button>
+    <b>Tomo</b>
+    <button class="g" id="bv" type="button">🔊</button>
+    <button class="g" id="bc" type="button">⚙</button>
+    <button class="g" id="bn" type="button">Nova</button>
   </header>
   <div id="cfg" hidden>
     <input id="key" type="password" placeholder="Cole sua chave do Gemini aqui" autocomplete="off">
-    <input id="model" type="text" placeholder="Modelo (ex: gemini-2.5-flash-lite)">
-    <button class="g" id="bs" type="button" style="background:linear-gradient(45deg,#ff0055,#7b00ff);color:#fff">Salvar Configurações</button>
-    <button class="g" id="bacc" type="button" style="background:#1F2937;color:#00ffcc;border-color:#00ffcc">Ativar Permissão de Cliques (Acessibilidade)</button>
-    <small>A chave fica salva apenas no armazenamento local do seu dispositivo.</small>
+    <input id="model" type="text" placeholder="Modelo">
+    <button class="g" id="bs" type="button">Salvar</button>
+    <small>A chave fica só neste celular. Se der erro 404, troque o modelo por gemini-2.5-flash-lite.</small>
   </div>
   <main id="list"></main>
-
-  <div id="previewBox" class="preview-container" hidden>
-    <div class="preview-thumb">
-      <img id="imgPreview" src="" alt="Anexo">
-      <button id="removeImg">✕</button>
-    </div>
-    <small style="color:var(--muted)">Imagem pronta para envio</small>
-  </div>
-
   <div class="c">
-    <input type="file" id="fileInput" accept="image/*" hidden>
-    <button class="r" id="imgBtn" type="button" title="Enviar Imagem" style="font-size:15px;">📷</button>
-    <textarea id="in" rows="1" placeholder="Escreva ou toque no microfone..."></textarea>
+    <textarea id="in" rows="1" placeholder="Escreva ou toque no microfone"></textarea>
     <button class="r" id="mic" type="button" aria-label="Falar">🎤</button>
     <button class="r" id="go" type="button" aria-label="Enviar">➤</button>
   </div>
 </div>
 <script>
-var SYS="Você é o Tomo Shogun, um assistente de IA avançado estilo Shogun com visual gamer RGB em um app Android. Responda em português do Brasil, de forma curta e direta. Se o usuário pedir para clicar na tela, abrir configurações ou executar comandos visuais, oriente-o ou dispare as funções.";
+var SYS="Você é o Tomo, um assistente de IA em um app de celular. Responda em português do Brasil, de forma curta, clara e amigável, em texto simples.";
 var $=function(s){return document.querySelector(s)};
 function lg(k){try{return localStorage.getItem(k)}catch(e){return null}}
 function ls(k,v){try{localStorage.setItem(k,v)}catch(e){}}
 var msgs=[];try{msgs=JSON.parse(lg("tomo:msgs")||"[]")}catch(e){msgs=[]}
 var busy=false,nota="",voz=lg("tomo:voz")==="1";
-var currentImageData=null;
-
 $("#key").value=lg("tomo:key")||"";
-$("#model").value=lg("tomo:model")||"gemini-2.5-flash-lite";
+$("#model").value=lg("tomo:model")||"gemini-flash-lite-latest";
 if(!lg("tomo:key"))$("#cfg").hidden=false;
 $("#bv").style.opacity=voz?1:.5;
 
 function render(extra){
   var l=$("#list");l.textContent="";
-  if(!msgs.length){
-    var v=document.createElement("div");v.className="v";
-    v.innerHTML="<h2>Tomo Shogun Online</h2><p>Ative a acessibilidade nas configurações para comandos de tela.</p>";
-    l.appendChild(v);
-  }
-  msgs.forEach(function(m){
-    var d=document.createElement("div");d.className="m "+(m.role==="user"?"u":"a");
-    if(typeof m.text === "string"){
-      d.textContent=m.text;
-    } else if(Array.isArray(m.text)){
-      m.text.forEach(function(part){
-        if(part.text){let p=document.createElement("div");p.textContent=part.text;d.appendChild(p);}
-        if(part.inline_data){let img=document.createElement("img");img.src="data:"+part.inline_data.mime_type+";base64,"+part.inline_data.data;d.appendChild(img);}
-      });
-    }
-    l.appendChild(d);
-  });
+  if(!msgs.length){var v=document.createElement("div");v.className="v";v.textContent="Oi! Toque no microfone e fale comigo.";l.appendChild(v)}
+  msgs.forEach(function(m){var d=document.createElement("div");d.className="m "+(m.role==="user"?"u":"a");d.textContent=m.text;l.appendChild(d)});
   if(extra){var p=document.createElement("div");p.className="n";p.textContent=extra;l.appendChild(p)}
   if(nota){var n=document.createElement("div");n.className="n";n.textContent=nota;l.appendChild(n)}
   l.scrollTop=l.scrollHeight;
@@ -132,120 +75,44 @@ function falar(t){
   speechSynthesis.cancel();
   var u=new SpeechSynthesisUtterance(t);u.lang="pt-BR";speechSynthesis.speak(u);
 }
-
-async function executarAcoesInteligentes(textoResposta){
-  var tLower = textoResposta.toLowerCase();
-  if(tLower.includes("limpar") || tLower.includes("conversa limpa")){
-    msgs=[]; ls("tomo:msgs","[]");
-    nota="Conversa limpa com sucesso!";
-  } else if(tLower.includes("clicar") && window.AndroidShogun){
-    // Exemplo de comando automático de clique nas coordenadas x=500, y=1000
-    window.AndroidShogun.executarClique(500f, 1000f);
-    nota="Comando de clique executado na tela!";
-  }
-}
-
 async function enviar(texto){
-  texto=(texto||"").trim();
-  if(!texto && !currentImageData)return;
-  if(busy)return;
-
-  var rawKey=lg("tomo:key")||"";
-  var rawModel=lg("tomo:model")||"gemini-2.5-flash-lite";
-  var key=rawKey.replace(/[^\x20-\x7E]/g, "").trim();
-  var model=rawModel.replace(/[^\x20-\x7E]/g, "").trim();
-
+  texto=(texto||"").trim();if(!texto||busy)return;
+  var key=lg("tomo:key"),model=lg("tomo:model")||"gemini-flash-lite-latest";
   nota="";
   if(!key){nota="Cole sua chave do Gemini em ⚙ primeiro.";$("#cfg").hidden=false;render();return}
-
-  var userParts=[];
-  if(currentImageData){
-    userParts.push({inline_data:{mime_type:currentImageData.mime, data:currentImageData.base64}});
-  }
-  if(texto){
-    userParts.push({text:texto});
-  }
-
-  msgs.push({role:"user", text: userParts.length===1 && userParts[0].text ? userParts[0].text : userParts});
-  $("#in").value="";$("#in").style.height="auto";
-  currentImageData=null; $("#previewBox").hidden=true;
-  
-  busy=true;render("Pensando...");
+  msgs.push({role:"user",text:texto});$("#in").value="";busy=true;render("pensando...");
   try{
-    var formattedContents=msgs.slice(-20).map(function(m){
-      if(typeof m.text === "string"){
-        return {role: m.role==="user"?"user":"model", parts:[{text: m.text}]};
-      } else {
-        return {role: m.role==="user"?"user":"model", parts: m.text};
-      }
-    });
-    while(formattedContents.length&&formattedContents[0].role==="model")formattedContents.shift();
-
+    var cont=msgs.slice(-20).map(function(m){return{role:m.role==="user"?"user":"model",parts:[{text:m.text}]}});
+    while(cont.length&&cont[0].role==="model")cont.shift();
     var r=await fetch("https://generativelanguage.googleapis.com/v1beta/models/"+encodeURIComponent(model)+":generateContent",{
       method:"POST",
       headers:{"Content-Type":"application/json","x-goog-api-key":key},
-      body:JSON.stringify({systemInstruction:{parts:[{text:SYS}]},contents:formattedContents})
+      body:JSON.stringify({systemInstruction:{parts:[{text:SYS}]},contents:cont})
     });
     var j=await r.json();
     if(!r.ok)throw new Error((j.error&&j.error.message)||("Erro "+r.status));
     var t="(sem resposta)";
-    if(j.candidates&&j.candidates[0]&&j.candidates[0].content){
-      t=j.candidates[0].content.parts.map(function(p){return p.text||""}).join("");
-    }
-    
-    await executarAcoesInteligentes(t);
+    if(j.candidates&&j.candidates[0]&&j.candidates[0].content){t=j.candidates[0].content.parts.map(function(p){return p.text||""}).join("")}
     msgs.push({role:"model",text:t});falar(t);
   }catch(e){
-    msgs.pop();nota="Erro ao enviar: "+e.message;
+    msgs.pop();$("#in").value=texto;nota="Não deu certo: "+e.message;
   }
   busy=false;ls("tomo:msgs",JSON.stringify(msgs.slice(-40)));render();
 }
-
 $("#go").onclick=function(){enviar($("#in").value)};
-$("#in").addEventListener("keydown",function(e){if(e.key==="Enter"&&!e.shiftKey){e.preventDefault();enviar(this.value)}});
 $("#in").addEventListener("input",function(){this.style.height="auto";this.style.height=Math.min(this.scrollHeight,140)+"px"});
-$("#bc").onclick=function(){$("#cfg").hidden=!$("#cfg".hidden)};
-$("#bs").onclick=function(){ls("tomo:key",$("#key").value.trim());ls("tomo:model",$("#model").value.trim());$("#cfg").hidden=true;nota="Configurações salvas!";render()};
-$("#bn").onclick=function(){msgs=[];nota="Nova conversa iniciada.";ls("tomo:msgs","[]");render()};
-$("#bv").onclick=function(){voz=!voz;ls("tomo:voz",voz?"1":"0");this.style.opacity=voz?1:.5;nota=voz?"Voz ativada":"Voz desativada";if(!voz&&window.speechSynthesis)speechSynthesis.cancel();render()};
+$("#bc").onclick=function(){$("#cfg").hidden=!$("#cfg").hidden};
+$("#bs").onclick=function(){ls("tomo:key",$("#key").value.trim());ls("tomo:model",$("#model").value.trim());$("#cfg").hidden=true;nota="Salvo.";render()};
+$("#bn").onclick=function(){msgs=[];nota="";ls("tomo:msgs","[]");render()};
+$("#bv").onclick=function(){voz=!voz;ls("tomo:voz",voz?"1":"0");this.style.opacity=voz?1:.5;if(!voz&&window.speechSynthesis)speechSynthesis.cancel()};
 
-// Botão para abrir as configurações de Acessibilidade do Android direto pelo app
-$("#bacc").onclick=function(){
-  if(window.AndroidShogun){
-    window.AndroidShogun.abrirConfiguracoesAcessibilidade();
-  }else{
-    alert("Recurso nativo disponível apenas no APK compilado.");
-  }
-};
-
-// Envio de Imagens
-$("#imgBtn").onclick=function(){$("#fileInput").click()};
-$("#fileInput").onchange=function(e){
-  var file=e.target.files[0];
-  if(!file)return;
-  var reader=new FileReader();
-  reader.onload=function(evt){
-    var base64Full=evt.target.result;
-    var mime=base64Full.split(";")[0].split(":")[1];
-    var base64Data=base64Full.split(",")[1];
-    currentImageData={mime:mime, base64:base64Data};
-    $("#imgPreview").src=base64Full;
-    $("#previewBox").hidden=false;
-  };
-  reader.readAsDataURL(file);
-};
-$("#removeImg").onclick=function(){
-  currentImageData=null;$("#previewBox").hidden=true;$("#fileInput").value="";
-};
-
-// Microfone Web Integrado
 var SR=window.SpeechRecognition||window.webkitSpeechRecognition,rec=null,ouvindo=false;
 if(!SR)$("#mic").hidden=true;
 $("#mic").onclick=function(){
   if(ouvindo){if(rec)rec.stop();return}
   rec=new SR();rec.lang="pt-BR";rec.interimResults=false;rec.continuous=false;
-  rec.onstart=function(){ouvindo=true;$("#mic").classList.add("on");nota="Ouvindo...";render()};
-  rec.onend=function(){ouvindo=false;$("#mic").classList.remove("on");nota="";render()};
+  rec.onstart=function(){ouvindo=true;$("#mic").classList.add("on")};
+  rec.onend=function(){ouvindo=false;$("#mic").classList.remove("on")};
   rec.onerror=function(e){nota="Microfone: "+e.error;render()};
   rec.onresult=function(e){enviar(e.results[0][0].transcript)};
   rec.start();
