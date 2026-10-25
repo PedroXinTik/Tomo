@@ -66,8 +66,8 @@ jobs:
                   applicationId 'com.tomo.agente'
                   minSdk 30
                   targetSdk 34
-                  versionCode 7
-                  versionName '7.0'
+                  versionCode 8
+                  versionName '8.0'
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
@@ -101,7 +101,7 @@ jobs:
                   android:label="Agente"
                   android:allowBackup="false"
                   android:theme="@style/Theme.AppCompat.Light.NoActionBar">
-                  
+
                   <activity android:name=".MainActivity" android:exported="true">
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN"/>
@@ -142,7 +142,7 @@ jobs:
           cat > proj/app/src/main/res/values/strings.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <resources>
-              <string name="desc">Permite que o Agente veja a tela por captura e toque nela quando você pedir por voz.</string>
+              <string name="desc">Permite que o Agente veja a tela e toque nela quando você pedir por voz.</string>
           </resources>
           EOF
 
@@ -167,23 +167,21 @@ jobs:
                   android:id="@+id/btnAcessibilidade"
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
-                  android:text="Ativar Acessibilidade"
+                  android:text="1. Ativar Acessibilidade"
                   android:layout_marginBottom="12dp"/>
 
               <Button
                   android:id="@+id/btnOverlay"
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
-                  android:text="Permitir Overlay"
+                  android:text="2. Permitir Overlay"
                   android:layout_marginBottom="12dp"/>
 
               <Button
                   android:id="@+id/btnVerifier"
                   android:layout_width="match_parent"
                   android:layout_height="wrap_content"
-                  android:text="Verificador de Imagem"
-                  android:layout_marginBottom="12dp"/>
-
+                  android:text="Verificador de Imagem"/>
           </LinearLayout>
           EOF
 
@@ -216,7 +214,6 @@ jobs:
                   android:layout_marginTop="16dp"
                   android:textSize="16sp"
                   android:text="Nenhuma imagem selecionada"/>
-
           </LinearLayout>
           EOF
 
@@ -240,8 +237,7 @@ jobs:
                   }
 
                   findViewById<Button>(R.id.btnOverlay).setOnClickListener {
-                      val intent = Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName"))
-                      startActivity(intent)
+                      startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:$packageName")))
                   }
 
                   findViewById<Button>(R.id.btnVerifier).setOnClickListener {
@@ -275,8 +271,7 @@ jobs:
                   val reasons = mutableListOf<String>()
                   var score = 100
 
-                  val resolutionOk = bitmap.width >= 512 && bitmap.height >= 512
-                  if (!resolutionOk) {
+                  if (bitmap.width < 512 || bitmap.height < 512) {
                       reasons.add("Resolução baixa (\( {bitmap.width}x \){bitmap.height}). Mínimo 512x512")
                       score -= 30
                   }
@@ -287,18 +282,15 @@ jobs:
                       score -= 40
                   }
 
-                  val sharpness = calculateSharpness(bitmap)
-                  if (sharpness < 70.0) {
+                  if (calculateSharpness(bitmap) < 70.0) {
                       reasons.add("Imagem desfocada ou com pouca nitidez")
                       score -= 25
                   }
 
                   score = score.coerceIn(0, 100)
-                  val isGood = score >= 65 && hasFace && resolutionOk
+                  val isGood = score >= 65 && hasFace
 
-                  if (isGood && reasons.isEmpty()) {
-                      reasons.add("Imagem boa para uso")
-                  }
+                  if (isGood && reasons.isEmpty()) reasons.add("Imagem boa para uso")
 
                   return Image3DVerificationResult(isGood, score, reasons)
               }
@@ -309,8 +301,7 @@ jobs:
                           .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_ACCURATE)
                           .build()
                       val detector = FaceDetection.getClient(options)
-                      val image = InputImage.fromBitmap(bitmap, 0)
-                      val faces = detector.process(image).await()
+                      val faces = detector.process(InputImage.fromBitmap(bitmap, 0)).await()
                       faces.isNotEmpty()
                   } catch (e: Exception) {
                       false
@@ -325,11 +316,7 @@ jobs:
                   for (y in 1 until bitmap.height - 1 step step) {
                       for (x in 1 until bitmap.width - 1 step step) {
                           val center = getGray(bitmap.getPixel(x, y))
-                          val lap = abs(4 * center -
-                              getGray(bitmap.getPixel(x - 1, y)) -
-                              getGray(bitmap.getPixel(x + 1, y)) -
-                              getGray(bitmap.getPixel(x, y - 1)) -
-                              getGray(bitmap.getPixel(x, y + 1)))
+                          val lap = abs(4 * center - getGray(bitmap.getPixel(x-1, y)) - getGray(bitmap.getPixel(x+1, y)) - getGray(bitmap.getPixel(x, y-1)) - getGray(bitmap.getPixel(x, y+1)))
                           sum += lap
                           sumSq += lap * lap
                           count++
@@ -337,15 +324,11 @@ jobs:
                   }
                   if (count == 0) return 0.0
                   val mean = sum / count
-                  val variance = (sumSq / count) - mean.pow(2)
-                  return sqrt(variance.coerceAtLeast(0.0))
+                  return sqrt(((sumSq / count) - mean.pow(2)).coerceAtLeast(0.0))
               }
 
               private fun getGray(pixel: Int): Int {
-                  val r = Color.red(pixel)
-                  val g = Color.green(pixel)
-                  val b = Color.blue(pixel)
-                  return (0.299 * r + 0.587 * g + 0.114 * b).toInt()
+                  return (0.299 * Color.red(pixel) + 0.587 * Color.green(pixel) + 0.114 * Color.blue(pixel)).toInt()
               }
           }
           EOF
@@ -365,16 +348,12 @@ jobs:
           import kotlinx.coroutines.launch
 
           class VerifierActivity : AppCompatActivity() {
-
               private lateinit var imageView: ImageView
               private lateinit var resultText: TextView
 
               private val pickImage = registerForActivityResult(ActivityResultContracts.GetContent()) { uri: Uri? ->
                   uri ?: return@registerForActivityResult
-                  val bitmap = contentResolver.openInputStream(uri)?.use {
-                      BitmapFactory.decodeStream(it)
-                  } ?: return@registerForActivityResult
-
+                  val bitmap = contentResolver.openInputStream(uri)?.use { BitmapFactory.decodeStream(it) } ?: return@registerForActivityResult
                   imageView.setImageBitmap(bitmap)
 
                   lifecycleScope.launch {
@@ -383,8 +362,7 @@ jobs:
                       val status = if (result.isGoodFor3D) "✅ BOA PARA USO" else "❌ NÃO RECOMENDADA"
                       resultText.text = buildString {
                           appendLine(status)
-                          appendLine("Nota: ${result.score}/100")
-                          appendLine()
+                          appendLine("Nota: ${result.score}/100\n")
                           result.reasons.forEach { appendLine("• $it") }
                       }
                   }
@@ -393,39 +371,27 @@ jobs:
               override fun onCreate(savedInstanceState: Bundle?) {
                   super.onCreate(savedInstanceState)
                   setContentView(R.layout.activity_verifier)
-
                   imageView = findViewById(R.id.imageView)
                   resultText = findViewById(R.id.resultText)
-
-                  findViewById<Button>(R.id.btnSelect).setOnClickListener {
-                      pickImage.launch("image/*")
-                  }
+                  findViewById<Button>(R.id.btnSelect).setOnClickListener { pickImage.launch("image/*") }
               }
           }
           EOF
 
-          # Aqui vai o AgenteService (versão com intervalo de 0.5s)
           cat > proj/app/src/main/java/com/tomo/agente/AgenteService.kt <<'EOF'
           package com.tomo.agente
 
           import android.accessibilityservice.AccessibilityService
-          import android.accessibilityservice.GestureDescription
           import android.content.Context
           import android.graphics.Bitmap
           import android.graphics.BitmapFactory
           import android.graphics.Color
           import android.graphics.Outline
-          import android.graphics.Path
           import android.graphics.PixelFormat
-          import android.graphics.drawable.GradientDrawable
           import android.os.Handler
           import android.os.Looper
           import android.provider.Settings
-          import android.speech.RecognitionListener
-          import android.speech.RecognizerIntent
-          import android.speech.SpeechRecognizer
           import android.speech.tts.TextToSpeech
-          import android.util.Base64
           import android.view.Gravity
           import android.view.MotionEvent
           import android.view.View
@@ -436,14 +402,11 @@ jobs:
           import android.widget.ImageView
           import android.widget.TextView
           import android.widget.Toast
-          import org.json.JSONObject
-          import java.io.ByteArrayOutputStream
           import java.io.File
-          import java.net.HttpURLConnection
-          import java.net.URL
           import java.util.Locale
 
           class AgenteService : AccessibilityService() {
+
               companion object {
                   var instance: AgenteService? = null
                   @Volatile var rodando = false
@@ -453,32 +416,14 @@ jobs:
               private var caixa: View? = null
               private var selo: TextView? = null
               private var tts: TextToSpeech? = null
-              private var reconhecedor: SpeechRecognizer? = null
-              @Volatile private var estado = 0
+              @Volatile private var estado = 0          // 0 = parado, 1 = ouvindo, 2 = executando
               @Volatile private var observando = false
               private var ultimoToque = 0L
-              private val quadros = ArrayList<ByteArray>()
-              private val tempos = ArrayList<Long>()
-
-              private val sistema = """Você controla um celular Android olhando capturas da tela. Você recebe a fala do usuário, o que você já aprendeu e a imagem da tela.
-          Primeiro descubra o que o usuário quer. Há três casos:
-          1) PERGUNTA: NÃO toque em nada. Olhe a imagem e responda com "fim".
-          2) PEDIDO DE AÇÃO: execute na tela, passo a passo.
-          3) INFORMAÇÃO: responda "fim" com a mensagem "Anotado".
-          Responda SOMENTE com um JSON de uma ação. Coordenadas x e y de 0 a 1000.
-          {"acao":"tocar","x":N,"y":N}
-          {"acao":"segurar","x":N,"y":N,"ms":N}
-          {"acao":"deslizar","x1":N,"y1":N,"x2":N,"y2":N}
-          {"acao":"voltar"}
-          {"acao":"inicio"}
-          {"acao":"esperar"}
-          {"acao":"fim","mensagem":"resposta curta","licao":""}
-          """
 
               override fun onServiceConnected() {
                   instance = this
-                  tts = TextToSpeech(this) { s ->
-                      if (s == TextToSpeech.SUCCESS) tts?.language = Locale("pt", "BR")
+                  tts = TextToSpeech(this) {
+                      if (it == TextToSpeech.SUCCESS) tts?.language = Locale("pt", "BR")
                   }
                   mostrarBotao()
               }
@@ -487,11 +432,64 @@ jobs:
                   rodando = false
                   observando = false
                   esconderBotao()
-                  reconhecedor?.destroy()
                   tts?.shutdown()
                   instance = null
                   super.onDestroy()
               }
 
               override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
-              overr
+              override fun onInterrupt() {}
+
+              private fun aviso(msg: String) {
+                  ui.post { Toast.makeText(this, msg, Toast.LENGTH_LONG).show() }
+              }
+
+              private fun falar(texto: String) {
+                  ui.post { tts?.speak(texto, TextToSpeech.QUEUE_FLUSH, null, "agente") }
+              }
+
+              private fun rotulo(): String {
+                  return when {
+                      estado == 1 -> "🔴"
+                      estado == 2 -> "⏳"
+                      observando -> "👁"
+                      else -> "🎤"
+                  }
+              }
+
+              private fun definirEstado(novo: Int) {
+                  estado = novo
+                  ui.post { selo?.text = rotulo() }
+              }
+
+              private fun carregarAvatar(): Bitmap? {
+                  val arquivo = File(filesDir, "avatar.png")
+                  return if (arquivo.exists()) BitmapFactory.decodeFile(arquivo.absolutePath) else null
+              }
+
+              fun mostrarBotao() {
+                  ui.post {
+                      if (caixa != null) return@post
+                      if (!Settings.canDrawOverlays(this)) {
+                          aviso("Permita a opção 'Exibir sobre outros apps'")
+                          return@post
+                      }
+
+                      val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                      val avatar = carregarAvatar()
+
+                      val container = FrameLayout(this)
+                      val imagem = ImageView(this).apply {
+                          scaleType = ImageView.ScaleType.CENTER_CROP
+                          if (avatar != null) setImageBitmap(avatar)
+                          else setBackgroundColor(Color.parseColor("#2F3E9E"))
+                          outlineProvider = object : ViewOutlineProvider() {
+                              override fun getOutline(view: View, outline: Outline) {
+                                  outline.setOval(0, 0, view.width, view.height)
+                              }
+                          }
+                          clipToOutline = true
+                      }
+                      container.addView(imagem, FrameLayout.LayoutParams(150, 150))
+
+                      val te
