@@ -62,8 +62,8 @@ jobs:
                   applicationId 'com.tomo.agente'
                   minSdk 30
                   targetSdk 34
-                  versionCode 4
-                  versionName '4.0'
+                  versionCode 5
+                  versionName '5.0'
               }
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
@@ -181,16 +181,21 @@ jobs:
               private var tts: TextToSpeech? = null
               private var reconhecedor: SpeechRecognizer? = null
               @Volatile private var estado = 0
+              private var ultimoToque = 0L
+              private var tentativas = 0
 
-              private val sistema = """Você controla um celular Android olhando uma captura da tela. Você recebe a tarefa do usuário e a imagem da tela.
+              private val sistema = """Você controla um celular Android olhando uma captura da tela. Você recebe a tarefa do usuário, o que você já aprendeu e a imagem da tela.
           Responda SOMENTE com um JSON de uma ação. As coordenadas x e y vão de 0 a 1000 sobre a imagem (0,0 é o canto superior esquerdo e 1000,1000 o canto inferior direito).
           {"acao":"tocar","x":N,"y":N}
+          {"acao":"segurar","x":N,"y":N,"ms":N}
           {"acao":"deslizar","x1":N,"y1":N,"x2":N,"y2":N}
           {"acao":"voltar"}
           {"acao":"inicio"}
           {"acao":"esperar"}
-          {"acao":"fim","mensagem":"frase curta em português dizendo o que foi feito ou a resposta"}
+          {"acao":"fim","mensagem":"frase curta em português dizendo o que foi feito ou a resposta","licao":"dica curta para a próxima vez, ou vazio"}
+          A ação "segurar" pressiona e mantém por ms milissegundos (de 300 a 5000).
           Use "fim" quando a tarefa estiver pronta ou for impossível. Se o usuário só fez uma pergunta, responda na mensagem do "fim".
+          Use as dicas do que você já aprendeu. Inclua "licao" só quando a tarefa deu certo e a dica for realmente útil.
           Nunca faça compras, pagamentos, envio de mensagens, ligações ou exclusões, a menos que a tarefa peça exatamente isso.
           Se aparecer senha, pagamento ou dados sensíveis, use "fim"."""
 
@@ -225,7 +230,23 @@ jobs:
 
               private fun definirEstado(e: Int) {
                   estado = e
-                  ui.post { botao?.text = if (e == 1) "🔴" else if (e == 2) "⏳" else "🎤" }
+                  ui.post { botao?.text = if (e == 1) "🔴" else if (e == 2) "⏳" else if (e == 3) "…" else "🎤" }
+              }
+
+              private fun lerNotas(): List<String> {
+                  val s = getSharedPreferences("agente", Context.MODE_PRIVATE).getString("notas", "") ?: ""
+                  return s.split("\n").filter { it.isNotBlank() }
+              }
+
+              private fun gravarNotas(l: List<String>) {
+                  getSharedPreferences("agente", Context.MODE_PRIVATE).edit().putString("notas", l.takeLast(30).joinToString("\n")).apply()
+              }
+
+              private fun salvarNota(t: String) {
+                  val l = ArrayList(lerNotas())
+                  val limpa = t.replace("\n", " ").trim().take(160)
+                  if (limpa.isNotEmpty() && !l.contains(limpa)) l.add(limpa)
+                  gravarNotas(l)
               }
 
               fun mostrarBotao() {
@@ -270,7 +291,7 @@ jobs:
                               MotionEvent.ACTION_MOVE -> {
                                   val dx = e.rawX - toqueX
                                   val dy = e.rawY - toqueY
-                                  if (Math.abs(dx) > 15 || Math.abs(dy) > 15) moveu = true
+                                  if (Math.abs(dx) > 25 || Math.abs(dy) > 25) moveu = true
                                   if (moveu) {
                                       p.x = iniX + dx.toInt()
                                       p.y = iniY + dy.toInt()
@@ -303,30 +324,61 @@ jobs:
               }
 
               private fun aoTocarBotao() {
+                  val agora = System.currentTimeMillis()
+                  if (agora - ultimoToque < 700) return
+                  ultimoToque = agora
                   if (estado == 0) {
+                      tentativas = 0
                       ouvir()
                   } else if (estado == 1) {
                       reconhecedor?.stopListening()
-                  } else {
+                  } else if (estado == 2) {
                       rodando = false
                       falar("Parei.")
                   }
               }
 
+              private fun tratarComando(t: String) {
+                  val baixa = t.lowercase().trim()
+                  if (baixa.contains("esqueça tudo") || baixa.contains("esqueca tudo")) {
+                      gravarNotas(emptyList())
+                      falar("Esqueci tudo.")
+                      definirEstado(0)
+                      return
+                  }
+                  if (baixa.startsWith("aprenda") || baixa.startsWith("lembre") || baixa.startsWith("anote")) {
+                      var nota = t.trim().substringAfter(" ", "").trim()
+                      if (nota.lowercase().startsWith("que ")) nota = nota.substring(4)
+                      if (nota.isNotEmpty()) {
+                          salvarNota(nota)
+                          falar("Aprendi.")
+                      } else {
+                          falar("O que devo aprender?")
+                      }
+                      definirEstado(0)
+                      return
+                  }
+                  executar(t)
+              }
+
               private fun ouvir() {
                   if (!SpeechRecognizer.isRecognitionAvailable(this)) {
                       aviso("Reconhecimento de voz indisponível neste celular.")
+                      definirEstado(0)
                       return
                   }
                   if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
                       aviso("Permita o microfone, no app Agente.")
+                      definirEstado(0)
                       return
                   }
                   reconhecedor?.destroy()
                   val sr = SpeechRecognizer.createSpeechRecognizer(this)
                   reconhecedor = sr
                   sr.setRecognitionListener(object : RecognitionListener {
-                      override fun onReadyForSpeech(p: Bundle?) {}
+                      override fun onReadyForSpeech(p: Bundle?) {
+                          definirEstado(1)
+                      }
                       override fun onBeginningOfSpeech() {}
                       override fun onRmsChanged(v: Float) {}
                       override fun onBufferReceived(b: ByteArray?) {}
@@ -334,6 +386,11 @@ jobs:
                       override fun onPartialResults(p: Bundle?) {}
                       override fun onEvent(t: Int, p: Bundle?) {}
                       override fun onError(codigo: Int) {
+                          if ((codigo == 6 || codigo == 7 || codigo == 8) && tentativas < 1) {
+                              tentativas++
+                              ui.postDelayed({ ouvir() }, 400)
+                              return
+                          }
                           definirEstado(0)
                           aviso("Erro de voz, código " + codigo)
                           falar("Não entendi. Toque no botão e fale de novo.")
@@ -343,14 +400,16 @@ jobs:
                           if (t.isNullOrEmpty()) {
                               definirEstado(0)
                           } else {
-                              executar(t)
+                              tratarComando(t)
                           }
                       }
                   })
                   val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
                   i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
                   i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pt-BR")
-                  definirEstado(1)
+                  i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
+                  i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
+                  definirEstado(3)
                   sr.startListening(i)
               }
 
@@ -366,6 +425,15 @@ jobs:
                   val p = Path()
                   p.moveTo((xn / 1000.0 * ref.width).toFloat(), (yn / 1000.0 * ref.height).toFloat())
                   gesto(p, 60)
+              }
+
+              private fun segurar(xn: Double, yn: Double, ms: Long, ref: Bitmap) {
+                  if (xn.isNaN() || yn.isNaN()) return
+                  val duracao = ms.coerceIn(300L, 5000L)
+                  val p = Path()
+                  p.moveTo((xn / 1000.0 * ref.width).toFloat(), (yn / 1000.0 * ref.height).toFloat())
+                  gesto(p, duracao)
+                  Thread.sleep(duracao)
               }
 
               private fun deslizar(a: JSONObject, ref: Bitmap) {
@@ -462,17 +530,22 @@ jobs:
                                   return@Thread
                               }
                               val feitas = if (historico.isEmpty()) "nenhuma" else historico.joinToString("; ")
-                              val pedido = "Tarefa: " + tarefa + "\nAções já feitas: " + feitas
+                              val notas = lerNotas()
+                              val aprendido = if (notas.isEmpty()) "nada ainda" else notas.joinToString("\n- ", "- ")
+                              val pedido = "Tarefa: " + tarefa + "\nO que você já aprendeu (use isso):\n" + aprendido + "\nAções já feitas: " + feitas
                               val a = JSONObject(perguntar(chave, modelo, pedido, paraBase64(tela)).trim())
                               val acao = a.optString("acao")
                               var fim = false
                               when (acao) {
                                   "tocar" -> tocar(a.optDouble("x"), a.optDouble("y"), tela)
+                                  "segurar" -> segurar(a.optDouble("x"), a.optDouble("y"), a.optLong("ms", 1000L), tela)
                                   "deslizar" -> deslizar(a, tela)
                                   "voltar" -> performGlobalAction(GLOBAL_ACTION_BACK)
                                   "inicio" -> performGlobalAction(GLOBAL_ACTION_HOME)
                                   "esperar" -> {}
                                   "fim" -> {
+                                      val licao = a.optString("licao", "").trim()
+                                      if (licao.isNotEmpty()) salvarNota(licao)
                                       falar(a.optString("mensagem", "Pronto."))
                                       fim = true
                                   }
@@ -504,6 +577,7 @@ jobs:
 
           import android.Manifest
           import android.app.Activity
+          import android.app.AlertDialog
           import android.content.Intent
           import android.net.Uri
           import android.os.Bundle
@@ -531,7 +605,7 @@ jobs:
                   raiz.addView(titulo)
 
                   val atencao = TextView(this)
-                  atencao.text = "Faça os passos 1 a 4 uma vez. Depois use o botão 🎤 que aparece sobre os outros apps: toque, fale, e o Agente olha a tela, age e avisa por voz. Atenção: as imagens da tela são enviadas ao Google, então não use com senha, banco ou conversas privadas. Automatizar jogos online pode violar as regras deles."
+                  atencao.text = "Faça os passos 1 a 4 uma vez. Depois use o botão 🎤 sobre os outros apps: toque, espere o 🔴, fale, e o Agente olha a tela, age e avisa por voz.\n\nPara ensinar, diga: aprenda que... Para apagar o que aprendeu, diga: esqueça tudo.\n\nAtenção: as imagens da tela e o que ele aprendeu são enviados ao Google. Não use com senha, banco ou conversas privadas. Automatizar jogos online pode violar as regras deles."
                   atencao.setPadding(0, 16, 0, 24)
                   raiz.addView(atencao)
 
@@ -559,6 +633,15 @@ jobs:
                   })
                   raiz.addView(botao("Esconder botão flutuante") {
                       AgenteService.instance?.esconderBotao()
+                  })
+                  raiz.addView(botao("Ver o que aprendeu") {
+                      val n = prefs.getString("notas", "") ?: ""
+                      val texto = if (n.isBlank()) "Ainda não aprendi nada." else n
+                      AlertDialog.Builder(this).setTitle("O que o Agente aprendeu").setMessage(texto).setPositiveButton("Ok", null).show()
+                  })
+                  raiz.addView(botao("Esquecer tudo que aprendeu") {
+                      prefs.edit().putString("notas", "").apply()
+                      avisar("Esqueci tudo.")
                   })
 
                   val rolagem = ScrollView(this)
