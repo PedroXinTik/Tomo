@@ -1,53 +1,79 @@
-name: Gerar APK do Agente
+name: Agente V8 - Gerar APK Futurista
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
-    paths: ['.github/workflows/**']
+    paths:
+      - '.github/workflows/gerar_apk_agente_v8.yml'
 
 permissions:
-  contents: write
+  contents: read
+
+concurrency:
+  group: agente-v8-build
+  cancel-in-progress: true
 
 jobs:
   build:
+    name: Construir APK do Agente V8
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+    timeout-minutes: 30
 
-      - uses: actions/setup-java@v4
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Java 17
+        uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: 17
+          java-version: '17'
 
-      - uses: gradle/actions/setup-gradle@v4
+      - name: Configurar Gradle
+        uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: 8.9
+          gradle-version: '8.9'
 
-      - name: Criar o projeto Android
+      - name: Criar projeto Android
+        shell: bash
         run: |
-          mkdir -p proj/app/src/main/java/com/tomo/agente proj/app/src/main/res/xml proj/app/src/main/res/values
+          set -euo pipefail
+
+          mkdir -p proj/app/src/main/java/com/tomo/agente
+          mkdir -p proj/app/src/main/res/values
+          mkdir -p proj/app/src/main/res/drawable
+          mkdir -p proj/app/src/main/res/xml
 
           cat > proj/settings.gradle <<'EOF'
           pluginManagement {
-              repositories { google(); mavenCentral(); gradlePluginPortal() }
+              repositories {
+                  google()
+                  mavenCentral()
+                  gradlePluginPortal()
+              }
           }
           dependencyResolutionManagement {
-              repositories { google(); mavenCentral() }
+              repositories {
+                  google()
+                  mavenCentral()
+              }
           }
-          rootProject.name = "Agente"
-          include ":app"
+          rootProject.name = "AgenteV8"
+          include(":app")
           EOF
 
           cat > proj/build.gradle <<'EOF'
           plugins {
-              id 'com.android.application' version '8.5.2' apply false
-              id 'org.jetbrains.kotlin.android' version '1.9.24' apply false
+              id 'com.android.application' version '8.7.3' apply false
+              id 'org.jetbrains.kotlin.android' version '2.0.21' apply false
           }
           EOF
 
           cat > proj/gradle.properties <<'EOF'
-          org.gradle.jvmargs=-Xmx2g
+          org.gradle.jvmargs=-Xmx3g -Dfile.encoding=UTF-8
+          android.useAndroidX=true
+          kotlin.code.style=official
           EOF
 
           cat > proj/app/build.gradle <<'EOF'
@@ -55,81 +81,132 @@ jobs:
               id 'com.android.application'
               id 'org.jetbrains.kotlin.android'
           }
+
           android {
               namespace 'com.tomo.agente'
-              compileSdk 34
+              compileSdk 35
+
               defaultConfig {
                   applicationId 'com.tomo.agente'
                   minSdk 30
-                  targetSdk 34
-                  versionCode 7
-                  versionName '7.0'
+                  targetSdk 35
+                  versionCode 9
+                  versionName '8.1'
               }
+
               compileOptions {
                   sourceCompatibility JavaVersion.VERSION_17
                   targetCompatibility JavaVersion.VERSION_17
               }
-              kotlinOptions { jvmTarget = '17' }
+
+              kotlinOptions {
+                  jvmTarget = '17'
+              }
+
+              buildTypes {
+                  release {
+                      minifyEnabled false
+                  }
+              }
           }
           EOF
 
           cat > proj/app/src/main/AndroidManifest.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
               <uses-permission android:name="android.permission.INTERNET"/>
               <uses-permission android:name="android.permission.RECORD_AUDIO"/>
               <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
-              <queries>
-                  <intent>
-                      <action android:name="android.speech.RecognitionService"/>
-                  </intent>
-                  <intent>
-                      <action android:name="android.intent.action.TTS_SERVICE"/>
-                  </intent>
-              </queries>
+
               <application
-                  android:label="Agente"
                   android:allowBackup="false"
-                  android:theme="@android:style/Theme.DeviceDefault.Light.NoActionBar">
-                  <activity android:name=".MainActivity" android:exported="true" android:windowSoftInputMode="adjustResize">
+                  android:label="Agente V8"
+                  android:supportsRtl="true"
+                  android:theme="@style/AgenteTheme">
+
+                  <activity
+                      android:name=".MainActivity"
+                      android:exported="true">
+
                       <intent-filter>
                           <action android:name="android.intent.action.MAIN"/>
                           <category android:name="android.intent.category.LAUNCHER"/>
                       </intent-filter>
+
                   </activity>
+
                   <service
                       android:name=".AgenteService"
                       android:exported="true"
-                      android:label="Agente"
+                      android:label="Agente V8"
                       android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+
                       <intent-filter>
                           <action android:name="android.accessibilityservice.AccessibilityService"/>
                       </intent-filter>
+
                       <meta-data
                           android:name="android.accessibilityservice"
                           android:resource="@xml/accessibility_config"/>
+
                   </service>
+
               </application>
           </manifest>
+          EOF
+
+          cat > proj/app/src/main/res/values/styles.xml <<'EOF'
+          <resources>
+              <style name="AgenteTheme" parent="@android:style/Theme.Material.NoActionBar">
+                  <item name="android:fontFamily">sans</item>
+                  <item name="android:colorAccent">#9C7BFF</item>
+                  <item name="android:statusBarColor">#080D20</item>
+                  <item name="android:navigationBarColor">#080D20</item>
+                  <item name="android:windowLightStatusBar">false</item>
+                  <item name="android:windowActionModeOverlay">true</item>
+              </style>
+          </resources>
+          EOF
+
+          cat > proj/app/src/main/res/values/strings.xml <<'EOF'
+          <resources>
+              <string name="app_name">Agente V8</string>
+              <string name="accessibility_description">Serviço de acessibilidade do Agente V8. Os gestos são iniciados por solicitação do usuário.</string>
+          </resources>
           EOF
 
           cat > proj/app/src/main/res/xml/accessibility_config.xml <<'EOF'
           <?xml version="1.0" encoding="utf-8"?>
           <accessibility-service xmlns:android="http://schemas.android.com/apk/res/android"
-              android:accessibilityEventTypes="typeWindowStateChanged"
+              android:description="@string/accessibility_description"
+              android:accessibilityEventTypes="typeAllMask"
               android:accessibilityFeedbackType="feedbackGeneric"
               android:accessibilityFlags="flagDefault"
               android:canPerformGestures="true"
-              android:canTakeScreenshot="true"
-              android:description="@string/desc"
+              android:canRetrieveWindowContent="true"
               android:notificationTimeout="100"/>
           EOF
 
-          cat > proj/app/src/main/res/values/strings.xml <<'EOF'
-          <?xml version="1.0" encoding="utf-8"?>
-          <resources>
-              <string name="desc">Permite que o Agente veja a tela por captura e toque nela quando você pedir por voz.</string>
-          </resources>
+          cat > proj/app/src/main/res/drawable/panel_background.xml <<'EOF'
+          <shape xmlns:android="http://schemas.android.com/apk/res/android">
+              <solid android:color="#151D3B"/>
+              <corners android:radius="24dp"/>
+              <stroke android:width="1dp" android:color="#394A82"/>
+          </shape>
+          EOF
+
+          cat > proj/app/src/main/res/drawable/button_background.xml <<'EOF'
+          <ripple xmlns:android="http://schemas.android.com/apk/res/android"
+              android:color="#7768D8">
+              <item>
+                  <shape>
+                      <solid android:color="#283968"/>
+                      <corners android:radius="22dp"/>
+                      <stroke android:width="1dp" android:color="#6179CA"/>
+                  </shape>
+              </item>
+          </ripple>
           EOF
 
           cat > proj/app/src/main/java/com/tomo/agente/AgenteService.kt <<'EOF'
@@ -137,786 +214,71 @@ jobs:
 
           import android.accessibilityservice.AccessibilityService
           import android.accessibilityservice.GestureDescription
-          import android.content.Context
-          import android.content.Intent
-          import android.graphics.Bitmap
-          import android.graphics.BitmapFactory
-          import android.graphics.Color
-          import android.graphics.Outline
           import android.graphics.Path
-          import android.graphics.PixelFormat
-          import android.graphics.drawable.GradientDrawable
-          import android.os.Bundle
-          import android.os.Handler
-          import android.os.Looper
-          import android.provider.Settings
-          import android.speech.RecognitionListener
-          import android.speech.RecognizerIntent
-          import android.speech.SpeechRecognizer
-          import android.speech.tts.TextToSpeech
-          import android.util.Base64
-          import android.view.Display
-          import android.view.Gravity
-          import android.view.MotionEvent
-          import android.view.View
-          import android.view.ViewOutlineProvider
-          import android.view.WindowManager
           import android.view.accessibility.AccessibilityEvent
-          import android.widget.FrameLayout
-          import android.widget.ImageView
-          import android.widget.TextView
-          import android.widget.Toast
-          import org.json.JSONArray
-          import org.json.JSONObject
-          import java.io.ByteArrayOutputStream
-          import java.io.File
-          import java.net.HttpURLConnection
-          import java.net.URL
-          import java.util.Locale
-          import java.util.concurrent.CountDownLatch
-          import java.util.concurrent.TimeUnit
 
           class AgenteService : AccessibilityService() {
-              companion object {
-                  var instance: AgenteService? = null
-                  @Volatile var rodando = false
-              }
-
-              private val ui = Handler(Looper.getMainLooper())
-              private var caixa: View? = null
-              private var selo: TextView? = null
-              private var pBotao: WindowManager.LayoutParams? = null
-              private var tts: TextToSpeech? = null
-              private var reconhecedor: SpeechRecognizer? = null
-              @Volatile private var estado = 0
-              @Volatile private var sessao = 0
-              @Volatile private var observando = false
-              private var ultimoToque = 0L
-              private val quadros = ArrayList<ByteArray>()
-              private val tempos = ArrayList<Long>()
-              private val reserva = "gemini-flash-lite-latest"
-
-              private val conhecimento = """CONHECIMENTO GERAL SOBRE ROBLOX NO CELULAR (pode variar de jogo para jogo; confira a imagem antes de agir):
-          - O logo do Roblox no canto superior esquerdo abre o menu: sair do jogo (Leave), configurações e relatar.
-          - O ícone de balão de conversa abre o chat.
-          - A barra de itens (mochila ou inventário) fica na parte de baixo da tela.
-          - Canto inferior esquerdo: direcional virtual para andar (arraste o dedo a partir dele). Canto inferior direito: botão de pular.
-          - Arrastar o dedo em uma área livre gira a câmera.
-          - Para sair de um jogo: logo do Roblox, depois Leave, depois Leave de novo. Para entrar em um jogo: na tela inicial do app, toque no jogo e depois em Jogar (Play).
-          - Muitos jogos têm loja (Shop), inventário, missões (Quests), recompensas diárias, teleporte e botões de Auto (farm automático). Cada jogo tem sua própria interface.
-          - Pop-ups, anúncios e caixas de recompensa: feche pelo X no canto antes de continuar.
-          - Nunca toque em botões de compra com Robux, dinheiro, passes ou assinaturas. Nunca digite senha. Ignore ofertas de Robux grátis.
-          - Se você não entender a interface de um jogo, faça "fim" explicando o que falta em vez de adivinhar."""
-
-              private val sistemaBase = """Você controla um celular Android olhando capturas da tela. Você recebe a fala do usuário, o que você já aprendeu e as imagens da tela.
-          Primeiro descubra o que o usuário quer. Há três casos:
-          1) PERGUNTA (ele quer saber algo, por exemplo: o que é isso, qual é o melhor caminho, o que você vê): NÃO toque em nada. Olhe a imagem e responda com "fim", na mensagem.
-          2) PEDIDO DE AÇÃO (por exemplo: abra, toque, segure, role, vá para, use, ande): execute na tela. Se o pedido tem um tempo (por exemplo, por 30 minutos), continue agindo até o app encerrar pelo tempo, e só use "fim" se for impossível continuar.
-          3) INFORMAÇÃO (ele só conta ou ensina algo, sem pergunta nem pedido): responda "fim" com a mensagem "Anotado" e coloque a informação em "licao".
-          O app envia um palpite do tipo da frase, mas você decide pelo sentido.
-          Responda SOMENTE com um JSON no formato {"acoes":[ ... ]} com de 1 a 5 ações executadas em ordem. As coordenadas x e y vão de 0 a 1000 sobre a imagem (0,0 é o canto superior esquerdo e 1000,1000 o canto inferior direito).
-          {"acao":"tocar","x":N,"y":N}
-          {"acao":"segurar","x":N,"y":N,"ms":N}
-          {"acao":"mover","x":N,"y":N,"dx":N,"dy":N,"ms":N}
-          {"acao":"deslizar","x1":N,"y1":N,"x2":N,"y2":N}
-          {"acao":"voltar"}
-          {"acao":"inicio"}
-          {"acao":"esperar","ms":N}
-          {"acao":"fim","mensagem":"resposta curta em português, no máximo duas frases","licao":"dica curta para a próxima vez, ou vazio"}
-          "segurar" pressiona e mantém por ms milissegundos (de 300 a 5000). "mover" segura o dedo em x,y e arrasta até x+dx,y+dy durante ms milissegundos (serve para o direcional de andar). "fim" encerra a tarefa e deve ser a última ação.
-          Você pode receber imagens anteriores da tela, com o tempo em segundos atrás. A última imagem é sempre a tela atual.
-          Use as dicas do que você já aprendeu e confira se a tela mudou depois das suas ações. Inclua "licao" só quando a dica for realmente útil.
-          Nunca faça compras, pagamentos, envio de mensagens, ligações ou exclusões, a menos que a tarefa peça exatamente isso.
-          Se aparecer senha, pagamento ou dados sensíveis, use "fim"."""
-
-              private val sistema = sistemaBase + "\n" + conhecimento
-
-              private val sistemaEstudo = """Você está estudando uma tela de celular (provavelmente um jogo do Roblox ou um app) para ajudar o usuário depois. Responda SOMENTE com um JSON no formato {"licoes":["...","..."]} com de 3 a 6 dicas curtas e úteis, cada uma com até 150 caracteres, sobre: o que é esta tela ou jogo, o que cada botão importante faz e onde fica (use posições como canto inferior direito) e como fazer tarefas comuns aqui. Não invente o que não dá para ver."""
 
               override fun onServiceConnected() {
-                  instance = this
-                  tts = TextToSpeech(this) { s ->
-                      if (s == TextToSpeech.SUCCESS) tts?.language = Locale("pt", "BR")
-                  }
-                  mostrarBotao()
-              }
-
-              override fun onDestroy() {
-                  rodando = false
-                  observando = false
-                  esconderBotao()
-                  reconhecedor?.destroy()
-                  tts?.shutdown()
-                  instance = null
-                  super.onDestroy()
+                  super.onServiceConnected()
+                  instancia = this
               }
 
               override fun onAccessibilityEvent(event: AccessibilityEvent?) {}
 
               override fun onInterrupt() {}
 
-              private fun aviso(m: String) {
-                  ui.post { Toast.makeText(this, m, Toast.LENGTH_LONG).show() }
+              override fun onDestroy() {
+                  if (instancia === this) instancia = null
+                  super.onDestroy()
               }
 
-              private fun falar(t: String) {
-                  ui.post { tts?.speak(t, TextToSpeech.QUEUE_FLUSH, null, "agente") }
-              }
-
-              private fun rotulo(): String {
-                  return if (estado == 1) "🔴" else if (estado == 2) "⏳" else if (estado == 3) "…" else if (observando) "👁" else "🎤"
-              }
-
-              private fun definirEstado(e: Int) {
-                  estado = e
-                  ui.post { selo?.text = rotulo() }
-              }
-
-              private fun lerNotas(): List<String> {
-                  val s = getSharedPreferences("agente", Context.MODE_PRIVATE).getString("notas", "") ?: ""
-                  return s.split("\n").filter { it.isNotBlank() }
-              }
-
-              private fun gravarNotas(l: List<String>) {
-                  getSharedPreferences("agente", Context.MODE_PRIVATE).edit().putString("notas", l.takeLast(60).joinToString("\n")).apply()
-              }
-
-              private fun salvarNota(t: String) {
-                  val l = ArrayList(lerNotas())
-                  val limpa = t.replace("\n", " ").trim().take(160)
-                  if (limpa.isNotEmpty() && !l.contains(limpa)) l.add(limpa)
-                  gravarNotas(l)
-              }
-
-              private fun carregarAvatar(): Bitmap? {
-                  val f = File(filesDir, "avatar.png")
-                  if (!f.exists()) return null
-                  return BitmapFactory.decodeFile(f.absolutePath)
-              }
-
-              fun recriarBotao() {
-                  esconderBotao()
-                  mostrarBotao()
-              }
-
-              private fun manterTela(ligar: Boolean) {
-                  ui.post {
-                      val p = pBotao
-                      val v = caixa
-                      if (p != null && v != null) {
-                          p.flags = if (ligar) {
-                              p.flags or WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-                          } else {
-                              p.flags and WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON.inv()
-                          }
-                          try {
-                              val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-                              wm.updateViewLayout(v, p)
-                          } catch (e: Exception) {
-                          }
-                      }
+              fun tocar(x: Float, y: Float): Boolean {
+                  val path = Path().apply {
+                      moveTo(x, y)
                   }
-              }
 
-              fun mostrarBotao() {
-                  ui.post {
-                      if (caixa != null) return@post
-                      if (!Settings.canDrawOverlays(this)) {
-                          aviso("Permita exibir sobre outros apps, no app Agente.")
-                          return@post
-                      }
-                      val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-                      val av = carregarAvatar()
-                      val c = FrameLayout(this)
-                      val img = ImageView(this)
-                      img.scaleType = ImageView.ScaleType.CENTER_CROP
-                      if (av != null) img.setImageBitmap(av) else img.setBackgroundColor(Color.parseColor("#2F3E9E"))
-                      img.outlineProvider = object : ViewOutlineProvider() {
-                          override fun getOutline(view: View, outline: Outline) {
-                              outline.setOval(0, 0, view.width, view.height)
-                          }
-                      }
-                      img.clipToOutline = true
-                      c.addView(img, FrameLayout.LayoutParams(150, 150))
-                      val s = TextView(this)
-                      s.gravity = Gravity.CENTER
-                      if (av != null) {
-                          s.textSize = 14f
-                          val bg = GradientDrawable()
-                          bg.shape = GradientDrawable.OVAL
-                          bg.setColor(Color.parseColor("#CC141B34"))
-                          s.background = bg
-                          c.addView(s, FrameLayout.LayoutParams(64, 64, Gravity.BOTTOM or Gravity.END))
-                      } else {
-                          s.textSize = 26f
-                          c.addView(s, FrameLayout.LayoutParams(150, 150, Gravity.CENTER))
-                      }
-                      s.text = rotulo()
-                      val p = WindowManager.LayoutParams(
-                          150, 150,
-                          WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-                          WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-                          PixelFormat.TRANSLUCENT
+                  val gesture = GestureDescription.Builder()
+                      .addStroke(
+                          GestureDescription.StrokeDescription(
+                              path,
+                              0,
+                              100
+                          )
                       )
-                      p.gravity = Gravity.TOP or Gravity.START
-                      p.x = 20
-                      p.y = 500
-                      var iniX = 0
-                      var iniY = 0
-                      var toqueX = 0f
-                      var toqueY = 0f
-                      var moveu = false
-                      c.setOnTouchListener { view, e ->
-                          when (e.action) {
-                              MotionEvent.ACTION_DOWN -> {
-                                  iniX = p.x
-                                  iniY = p.y
-                                  toqueX = e.rawX
-                                  toqueY = e.rawY
-                                  moveu = false
-                              }
-                              MotionEvent.ACTION_MOVE -> {
-                                  val dx = e.rawX - toqueX
-                                  val dy = e.rawY - toqueY
-                                  if (Math.abs(dx) > 25 || Math.abs(dy) > 25) moveu = true
-                                  if (moveu) {
-                                      p.x = iniX + dx.toInt()
-                                      p.y = iniY + dy.toInt()
-                                      wm.updateViewLayout(view, p)
-                                  }
-                              }
-                              MotionEvent.ACTION_UP -> {
-                                  if (!moveu) aoTocarBotao()
-                              }
-                          }
-                          true
-                      }
-                      wm.addView(c, p)
-                      caixa = c
-                      selo = s
-                      pBotao = p
-                  }
-              }
-
-              fun esconderBotao() {
-                  ui.post {
-                      val v = caixa
-                      if (v != null) {
-                          val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
-                          try {
-                              wm.removeView(v)
-                          } catch (e: Exception) {
-                          }
-                          caixa = null
-                          selo = null
-                          pBotao = null
-                      }
-                  }
-              }
-
-              private fun aoTocarBotao() {
-                  val agora = System.currentTimeMillis()
-                  if (agora - ultimoToque < 700) return
-                  ultimoToque = agora
-                  if (estado == 0) {
-                      ouvir()
-                  } else if (estado == 1) {
-                      reconhecedor?.stopListening()
-                  } else if (estado == 2) {
-                      rodando = false
-                      falar("Parei.")
-                  }
-              }
-
-              fun iniciarObservacao() {
-                  if (observando) return
-                  observando = true
-                  definirEstado(estado)
-                  Thread {
-                      while (observando) {
-                          try {
-                              if (estado != 2) {
-                                  val b = capturar()
-                                  if (b != null) {
-                                      val bytes = comprimir(b, 360)
-                                      b.recycle()
-                                      synchronized(quadros) {
-                                          quadros.add(bytes)
-                                          tempos.add(System.currentTimeMillis())
-                                          while (quadros.size > 20) {
-                                              quadros.removeAt(0)
-                                              tempos.removeAt(0)
-                                          }
-                                      }
-                                  }
-                              }
-                              Thread.sleep(500)
-                          } catch (e: Exception) {
-                          }
-                      }
-                  }.start()
-              }
-
-              fun pararObservacao() {
-                  observando = false
-                  synchronized(quadros) {
-                      quadros.clear()
-                      tempos.clear()
-                  }
-                  definirEstado(estado)
-              }
-
-              private fun amostrarQuadros(imgs: ArrayList<String>): String {
-                  var idades = ""
-                  synchronized(quadros) {
-                      val n = quadros.size
-                      val alvo = if (n > 4) 4 else n
-                      val agora = System.currentTimeMillis()
-                      for (q in 0 until alvo) {
-                          val k = if (alvo == 1) n - 1 else (q * (n - 1)) / (alvo - 1)
-                          imgs.add(b64(quadros[k]))
-                          idades += ((agora - tempos[k]) / 1000.0).toString().take(4) + "s "
-                      }
-                  }
-                  return idades
-              }
-
-              private fun parecePergunta(t: String): Boolean {
-                  val b = t.lowercase().trim()
-                  if (b.endsWith("?")) return true
-                  val inicios = listOf("o que", "qual", "quais", "quem", "quando", "onde", "como", "por que", "porque", "por quê", "quanto", "quantos", "quantas", "será", "você sabe", "voce sabe", "me diga", "me fala", "me explique", "explique", "diga")
-                  for (i in inicios) {
-                      if (b.startsWith(i)) return true
-                  }
-                  return false
-              }
-
-              private fun minutosPedidos(t: String): Int {
-                  val b = t.lowercase()
-                  val m = Regex("(\\d+)\\s*(minutos?|min|horas?)").find(b)
-                  if (m != null) {
-                      val n = m.groupValues[1].toIntOrNull() ?: 0
-                      val un = m.groupValues[2]
-                      val total = if (un.startsWith("hora")) n * 60 else n
-                      return total.coerceIn(0, 60)
-                  }
-                  if (b.contains("meia hora")) return 30
-                  if (b.contains("uma hora")) return 60
-                  if (b.contains("duas horas")) return 60
-                  return 0
-              }
-
-              private fun tratarComando(t: String) {
-                  val baixa = t.lowercase().trim()
-                  if (baixa.contains("pare de observar") || baixa.contains("pare de olhar") || baixa.contains("não observe")) {
-                      pararObservacao()
-                      falar("Parei de observar.")
-                      definirEstado(0)
-                      return
-                  }
-                  if (baixa.startsWith("observe") || baixa.contains("fique de olho") || baixa.contains("comece a observar")) {
-                      iniciarObservacao()
-                      falar("Observando a tela.")
-                      definirEstado(0)
-                      return
-                  }
-                  if (baixa.contains("esqueça tudo") || baixa.contains("esqueca tudo")) {
-                      gravarNotas(emptyList())
-                      falar("Esqueci tudo.")
-                      definirEstado(0)
-                      return
-                  }
-                  if (baixa.startsWith("estud")) {
-                      estudar(0L)
-                      return
-                  }
-                  if (baixa.startsWith("aprend") || baixa.startsWith("lembr") || baixa.startsWith("anot") || baixa.startsWith("guarde") || baixa.startsWith("memoriz")) {
-                      var nota = t.trim().substringAfter(" ", "").trim()
-                      if (nota.lowercase().startsWith("que ")) nota = nota.substring(4)
-                      if (nota.isNotEmpty()) {
-                          salvarNota(nota)
-                          falar("Aprendi: " + nota.take(80))
-                      } else {
-                          falar("O que devo aprender?")
-                      }
-                      definirEstado(0)
-                      return
-                  }
-                  executar(t)
-              }
-
-              private fun ouvir() {
-                  if (!SpeechRecognizer.isRecognitionAvailable(this)) {
-                      aviso("Reconhecimento de voz indisponível neste celular.")
-                      definirEstado(0)
-                      return
-                  }
-                  if (checkSelfPermission(android.Manifest.permission.RECORD_AUDIO) != android.content.pm.PackageManager.PERMISSION_GRANTED) {
-                      aviso("Permita o microfone, no app Agente.")
-                      definirEstado(0)
-                      return
-                  }
-                  sessao++
-                  val minha = sessao
-                  reconhecedor?.destroy()
-                  val sr = SpeechRecognizer.createSpeechRecognizer(this)
-                  reconhecedor = sr
-                  sr.setRecognitionListener(object : RecognitionListener {
-                      override fun onReadyForSpeech(p: Bundle?) {
-                          if (minha == sessao) definirEstado(1)
-                      }
-                      override fun onBeginningOfSpeech() {}
-                      override fun onRmsChanged(v: Float) {}
-                      override fun onBufferReceived(b: ByteArray?) {}
-                      override fun onEndOfSpeech() {}
-                      override fun onPartialResults(p: Bundle?) {}
-                      override fun onEvent(t: Int, p: Bundle?) {}
-                      override fun onError(codigo: Int) {
-                          if (minha != sessao) return
-                          sessao++
-                          definirEstado(0)
-                          if (codigo == 6 || codigo == 7) {
-                              falar("Não ouvi nada. Toque e fale logo depois do vermelho.")
-                          } else {
-                              aviso("Erro de voz, código " + codigo)
-                              falar("Não entendi.")
-                          }
-                      }
-                      override fun onResults(r: Bundle?) {
-                          if (minha != sessao) return
-                          sessao++
-                          val t = r?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)?.firstOrNull()
-                          if (t.isNullOrEmpty()) {
-                              definirEstado(0)
-                          } else {
-                              tratarComando(t)
-                          }
-                      }
-                  })
-                  val i = Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH)
-                  i.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM)
-                  i.putExtra(RecognizerIntent.EXTRA_LANGUAGE, "pt-BR")
-                  i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
-                  i.putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 2000L)
-                  definirEstado(3)
-                  sr.startListening(i)
-                  ui.postDelayed({
-                      if (minha == sessao && estado == 3) {
-                          sessao++
-                          reconhecedor?.cancel()
-                          definirEstado(0)
-                          aviso("O microfone não respondeu. Toque de novo.")
-                      }
-                  }, 6000)
-              }
-
-              private fun px(n: Double, total: Int): Float {
-                  return (n / 1000.0 * total).coerceIn(1.0, (total - 1).toDouble()).toFloat()
-              }
-
-              private fun gesto(caminho: Path, ms: Long) {
-                  val g = GestureDescription.Builder()
-                      .addStroke(GestureDescription.StrokeDescription(caminho, 0, ms))
                       .build()
-                  dispatchGesture(g, null, null)
+
+                  return dispatchGesture(gesture, null, null)
               }
 
-              private fun tocar(xn: Double, yn: Double, ref: Bitmap) {
-                  if (xn.isNaN() || yn.isNaN()) return
-                  val p = Path()
-                  p.moveTo(px(xn, ref.width), px(yn, ref.height))
-                  gesto(p, 60)
-              }
-
-              private fun segurar(xn: Double, yn: Double, ms: Long, ref: Bitmap) {
-                  if (xn.isNaN() || yn.isNaN()) return
-                  val duracao = ms.coerceIn(300L, 5000L)
-                  val p = Path()
-                  p.moveTo(px(xn, ref.width), px(yn, ref.height))
-                  gesto(p, duracao)
-                  Thread.sleep(duracao)
-              }
-
-              private fun mover(a: JSONObject, ref: Bitmap) {
-                  val x = a.optDouble("x")
-                  val y = a.optDouble("y")
-                  val dx = a.optDouble("dx")
-                  val dy = a.optDouble("dy")
-                  if (x.isNaN() || y.isNaN() || dx.isNaN() || dy.isNaN()) return
-                  val duracao = a.optLong("ms", 1000L).coerceIn(300L, 5000L)
-                  val p = Path()
-                  p.moveTo(px(x, ref.width), px(y, ref.height))
-                  p.lineTo(px(x + dx, ref.width), px(y + dy, ref.height))
-                  gesto(p, duracao)
-                  Thread.sleep(duracao)
-              }
-
-              private fun deslizar(a: JSONObject, ref: Bitmap) {
-                  val x1 = a.optDouble("x1")
-                  val y1 = a.optDouble("y1")
-                  val x2 = a.optDouble("x2")
-                  val y2 = a.optDouble("y2")
-                  if (x1.isNaN() || y1.isNaN() || x2.isNaN() || y2.isNaN()) return
-                  val p = Path()
-                  p.moveTo(px(x1, ref.width), px(y1, ref.height))
-                  p.lineTo(px(x2, ref.width), px(y2, ref.height))
-                  gesto(p, 400)
-              }
-
-              private fun capturar(): Bitmap? {
-                  val ref = arrayOfNulls<Bitmap>(1)
-                  val trava = CountDownLatch(1)
-                  takeScreenshot(Display.DEFAULT_DISPLAY, mainExecutor, object : AccessibilityService.TakeScreenshotCallback {
-                      override fun onSuccess(r: AccessibilityService.ScreenshotResult) {
-                          try {
-                              val hw = Bitmap.wrapHardwareBuffer(r.hardwareBuffer, r.colorSpace)
-                              ref[0] = hw?.copy(Bitmap.Config.ARGB_8888, false)
-                              r.hardwareBuffer.close()
-                          } catch (e: Exception) {
-                          }
-                          trava.countDown()
-                      }
-
-                      override fun onFailure(errorCode: Int) {
-                          trava.countDown()
-                      }
-                  })
-                  trava.await(6, TimeUnit.SECONDS)
-                  return ref[0]
-              }
-
-              private fun comprimir(b: Bitmap, w: Int): ByteArray {
-                  val h = (b.height * w / b.width.toFloat()).toInt()
-                  val s = Bitmap.createScaledBitmap(b, w, h, true)
-                  val o = ByteArrayOutputStream()
-                  s.compress(Bitmap.CompressFormat.JPEG, 65, o)
-                  if (s !== b) s.recycle()
-                  return o.toByteArray()
-              }
-
-              private fun b64(x: ByteArray): String {
-                  return Base64.encodeToString(x, Base64.NO_WRAP)
-              }
-
-              private fun perguntar(chave: String, modelo: String, pedido: String, imagens: List<String>, sis: String = sistema): String {
-                  val partes = JSONArray()
-                  partes.put(JSONObject().put("text", pedido))
-                  for (img in imagens) {
-                      partes.put(JSONObject().put("inlineData", JSONObject().put("mimeType", "image/jpeg").put("data", img)))
+              fun deslizar(
+                  x1: Float,
+                  y1: Float,
+                  x2: Float,
+                  y2: Float,
+                  duracao: Long = 400
+              ): Boolean {
+                  val path = Path().apply {
+                      moveTo(x1, y1)
+                      lineTo(x2, y2)
                   }
-                  val corpo = JSONObject()
-                  corpo.put("systemInstruction", JSONObject().put("parts", JSONArray().put(JSONObject().put("text", sis))))
-                  corpo.put("contents", JSONArray().put(JSONObject().put("role", "user").put("parts", partes)))
-                  corpo.put("generationConfig", JSONObject().put("responseMimeType", "application/json"))
-                  val url = URL("https://generativelanguage.googleapis.com/v1beta/models/" + modelo + ":generateContent")
-                  val c = url.openConnection() as HttpURLConnection
-                  c.requestMethod = "POST"
-                  c.connectTimeout = 15000
-                  c.readTimeout = 90000
-                  c.doOutput = true
-                  c.setRequestProperty("Content-Type", "application/json")
-                  c.setRequestProperty("x-goog-api-key", chave)
-                  c.outputStream.use { it.write(corpo.toString().toByteArray(Charsets.UTF_8)) }
-                  val codigo = c.responseCode
-                  val stream = if (codigo in 200..299) c.inputStream else c.errorStream
-                  val resposta = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() } ?: ""
-                  if (codigo !in 200..299) throw Exception("Erro " + codigo + ": " + resposta.take(300))
-                  val j = JSONObject(resposta)
-                  return j.getJSONArray("candidates").getJSONObject(0).getJSONObject("content").getJSONArray("parts").getJSONObject(0).getString("text")
+
+                  val gesture = GestureDescription.Builder()
+                      .addStroke(
+                          GestureDescription.StrokeDescription(
+                              path,
+                              0,
+                              duracao.coerceIn(150L, 1500L)
+                          )
+                      )
+                      .build()
+
+                  return dispatchGesture(gesture, null, null)
               }
 
-              private fun perguntarSeguro(chave: String, modelo: String, pedido: String, imgs: List<String>): String? {
-                  try {
-                      return perguntar(chave, modelo, pedido, imgs)
-                  } catch (e: Exception) {
-                      val m = e.message ?: ""
-                      if (!(m.startsWith("Erro 429") || m.startsWith("Erro 503"))) throw e
-                  }
-                  if (modelo != reserva) {
-                      try {
-                          return perguntar(chave, reserva, pedido, imgs)
-                      } catch (e: Exception) {
-                          val m = e.message ?: ""
-                          if (!(m.startsWith("Erro 429") || m.startsWith("Erro 503"))) throw e
-                      }
-                  }
-                  return null
-              }
-
-              fun estudarDepois() {
-                  estudar(5000L)
-              }
-
-              private fun estudar(atrasoMs: Long) {
-                  val prefs = getSharedPreferences("agente", Context.MODE_PRIVATE)
-                  val chave = prefs.getString("chave", "") ?: ""
-                  val modelo = prefs.getString("modelo", "gemini-flash-latest") ?: "gemini-flash-latest"
-                  if (chave.isEmpty()) {
-                      definirEstado(0)
-                      aviso("Cole a chave no app Agente primeiro.")
-                      falar("Falta a chave da IA.")
-                      return
-                  }
-                  if (rodando) return
-                  rodando = true
-                  definirEstado(2)
-                  if (atrasoMs > 0L) aviso("Estudando a tela em 5 segundos. Abra o jogo ou app.")
-                  Thread {
-                      try {
-                          if (atrasoMs > 0L) Thread.sleep(atrasoMs)
-                          falar("Estudando a tela.")
-                          ui.post { caixa?.visibility = View.INVISIBLE }
-                          Thread.sleep(250)
-                          val tela = capturar()
-                          ui.post { caixa?.visibility = View.VISIBLE }
-                          if (tela == null) {
-                              falar("Não consegui ver a tela.")
-                              return@Thread
-                          }
-                          val imgs = ArrayList<String>()
-                          amostrarQuadros(imgs)
-                          imgs.add(b64(comprimir(tela, 720)))
-                          val notas = lerNotas()
-                          val sabe = if (notas.isEmpty()) "nada ainda" else notas.joinToString("\n- ", "- ")
-                          val texto = perguntar(chave, modelo, "Estude esta tela. O que você já sabe:\n" + sabe, imgs, sistemaEstudo)
-                          val ls = JSONObject(texto.trim()).optJSONArray("licoes")
-                          var n = 0
-                          if (ls != null) {
-                              for (k in 0 until ls.length()) {
-                                  val l = ls.optString(k).trim()
-                                  if (l.isNotEmpty()) {
-                                      salvarNota("(estudo) " + l)
-                                      n++
-                                  }
-                              }
-                          }
-                          falar(if (n > 0) "Estudei. Aprendi " + n + " coisas." else "Não consegui aprender nada novo.")
-                      } catch (e: Exception) {
-                          aviso("Erro: " + (e.message ?: e.toString()))
-                          falar("Deu erro.")
-                      } finally {
-                          rodando = false
-                          definirEstado(0)
-                          ui.post { caixa?.visibility = View.VISIBLE }
-                      }
-                  }.start()
-              }
-
-              private fun executar(tarefa: String) {
-                  if (rodando) {
-                      definirEstado(2)
-                      return
-                  }
-                  val prefs = getSharedPreferences("agente", Context.MODE_PRIVATE)
-                  val chave = prefs.getString("chave", "") ?: ""
-                  val modelo = prefs.getString("modelo", "gemini-flash-latest") ?: "gemini-flash-latest"
-                  if (chave.isEmpty()) {
-                      definirEstado(0)
-                      aviso("Cole a chave no app Agente primeiro.")
-                      falar("Falta a chave da IA.")
-                      return
-                  }
-                  val minutos = minutosPedidos(tarefa)
-                  val limiteMs = minutos * 60000L
-                  rodando = true
-                  definirEstado(2)
-                  manterTela(true)
-                  val tipo = if (parecePergunta(tarefa)) "PERGUNTA (provável: não toque em nada, só responda)" else "PEDIDO DE AÇÃO ou INFORMAÇÃO (decida pelo sentido)"
-                  Thread {
-                      val historico = ArrayList<String>()
-                      var falhas = 0
-                      var passo = 0
-                      val inicio = System.currentTimeMillis()
-                      try {
-                          while (rodando) {
-                              passo++
-                              if (limiteMs == 0L && passo > 8) {
-                                  falar("Terminei os passos que eu podia fazer.")
-                                  return@Thread
-                              }
-                              val decorrido = System.currentTimeMillis() - inicio
-                              if (limiteMs > 0L && decorrido > limiteMs) {
-                                  falar("O tempo acabou.")
-                                  return@Thread
-                              }
-                              ui.post { caixa?.visibility = View.INVISIBLE }
-                              Thread.sleep(200)
-                              val tela = capturar()
-                              ui.post { caixa?.visibility = View.VISIBLE }
-                              if (tela == null) {
-                                  falhas++
-                                  if (falhas > 6) {
-                                      falar("Não consegui ver a tela.")
-                                      return@Thread
-                                  }
-                                  Thread.sleep(1000)
-                                  continue
-                              }
-                              val imgs = ArrayList<String>()
-                              val idades = amostrarQuadros(imgs)
-                              imgs.add(b64(comprimir(tela, 720)))
-                              val extra = if (idades.isEmpty()) "" else "\nImagens anteriores da tela, da mais antiga para a mais recente, de há: " + idades + "\nA última imagem é a tela atual."
-                              val restante = if (limiteMs > 0L) ((limiteMs - decorrido) / 60000L).toString() + " minutos restantes de " + minutos else "sem tempo definido"
-                              val feitas = if (historico.isEmpty()) "nenhuma" else historico.joinToString("; ")
-                              val notas = lerNotas()
-                              val aprendido = if (notas.isEmpty()) "nada ainda" else notas.joinToString("\n- ", "- ")
-                              val pedido = "Fala do usuário: " + tarefa + "\nTipo provável: " + tipo + "\nTempo: " + restante + "\nO que você já aprendeu (use isso):\n" + aprendido + "\nÚltimas ações feitas: " + feitas + extra
-                              val texto = perguntarSeguro(chave, modelo, pedido, imgs)
-                              if (texto == null) {
-                                  falhas++
-                                  if (falhas > 8) {
-                                      falar("O limite da IA acabou. Tente mais tarde.")
-                                      return@Thread
-                                  }
-                                  aviso("Limite da IA. Esperando 20 segundos.")
-                                  Thread.sleep(20000)
-                                  continue
-                              }
-                              falhas = 0
-                              val raiz = JSONObject(texto.trim())
-                              val lista = raiz.optJSONArray("acoes") ?: JSONArray().put(raiz)
-                              var terminou = false
-                              for (idx in 0 until lista.length()) {
-                                  if (!rodando) break
-                                  val a = lista.getJSONObject(idx)
-                                  val acao = a.optString("acao")
-                                  when (acao) {
-                                      "tocar" -> tocar(a.optDouble("x"), a.optDouble("y"), tela)
-                                      "segurar" -> segurar(a.optDouble("x"), a.optDouble("y"), a.optLong("ms", 1000L), tela)
-                                      "mover" -> mover(a, tela)
-                                      "deslizar" -> deslizar(a, tela)
-                                      "voltar" -> performGlobalAction(GLOBAL_ACTION_BACK)
-                                      "inicio" -> performGlobalAction(GLOBAL_ACTION_HOME)
-                                      "esperar" -> Thread.sleep(a.optLong("ms", 1000L).coerceIn(200L, 5000L))
-                                      "fim" -> {
-                                          val licao = a.optString("licao", "").trim()
-                                          if (licao.isNotEmpty()) salvarNota(licao)
-                                          falar(a.optString("mensagem", "Pronto."))
-                                          terminou = true
-                                      }
-                                      else -> {
-                                          falar("Não entendi a resposta da IA.")
-                                          terminou = true
-                                      }
-                                  }
-                                  if (terminou) break
-                                  historico.add(a.toString().take(60))
-                                  Thread.sleep(300)
-                              }
-                              if (terminou) return@Thread
-                              while (historico.size > 12) historico.removeAt(0)
-                              Thread.sleep(if (limiteMs > 0L) 800L else 1200L)
-                          }
-                      } catch (e: Exception) {
-                          aviso("Erro: " + (e.message ?: e.toString()))
-                          falar("Deu erro.")
-                      } finally {
-                          rodando = false
-                          manterTela(false)
-                          definirEstado(0)
-                          ui.post { caixa?.visibility = View.VISIBLE }
-                      }
-                  }.start()
+              companion object {
+                  @Volatile
+                  var instancia: AgenteService? = null
               }
           }
           EOF
@@ -927,162 +289,819 @@ jobs:
           import android.Manifest
           import android.app.Activity
           import android.app.AlertDialog
+          import android.content.Context
           import android.content.Intent
-          import android.graphics.Bitmap
-          import android.graphics.BitmapFactory
+          import android.content.pm.PackageManager
+          import android.graphics.Color
+          import android.graphics.Typeface
+          import android.graphics.drawable.GradientDrawable
           import android.net.Uri
           import android.os.Bundle
           import android.provider.Settings
-          import android.text.InputType
+          import android.speech.RecognizerIntent
+          import android.speech.tts.TextToSpeech
+          import android.view.Gravity
+          import android.view.View
+          import android.view.ViewGroup
+          import android.view.WindowManager
           import android.widget.Button
           import android.widget.EditText
           import android.widget.LinearLayout
           import android.widget.ScrollView
           import android.widget.TextView
           import android.widget.Toast
-          import java.io.File
-          import java.io.FileOutputStream
+          import org.json.JSONArray
+          import org.json.JSONObject
+          import java.net.HttpURLConnection
+          import java.net.URL
+          import java.util.Locale
+          import java.util.concurrent.Executors
 
-          class MainActivity : Activity() {
+          class MainActivity : Activity(), TextToSpeech.OnInitListener {
+
+              private lateinit var chat: LinearLayout
+              private lateinit var entrada: EditText
+              private lateinit var tts: TextToSpeech
+              private lateinit var statusText: TextView
+
+              private val executor = Executors.newSingleThreadExecutor()
+
+              private val prefs by lazy {
+                  getSharedPreferences("agente_v8_memoria", Context.MODE_PRIVATE)
+              }
+
+              private val fundo = Color.rgb(8, 13, 32)
+              private val branco = Color.rgb(242, 245, 255)
+              private val azul = Color.rgb(35, 54, 104)
+              private val roxo = Color.rgb(111, 83, 218)
 
               override fun onCreate(savedInstanceState: Bundle?) {
                   super.onCreate(savedInstanceState)
-                  val prefs = getSharedPreferences("agente", MODE_PRIVATE)
-                  val raiz = LinearLayout(this)
-                  raiz.orientation = LinearLayout.VERTICAL
-                  raiz.setPadding(48, 120, 48, 48)
 
-                  val titulo = TextView(this)
-                  titulo.text = "Agente"
-                  titulo.textSize = 28f
-                  raiz.addView(titulo)
+                  window.statusBarColor = fundo
+                  window.navigationBarColor = fundo
 
-                  val atencao = TextView(this)
-                  atencao.text = "Faça os passos 1 a 4 uma vez. Depois use o botão sobre os outros apps: toque, espere o 🔴, fale, e o Agente olha a tela, age e avisa por voz.\n\nPara tarefas longas, diga o tempo: por 30 minutos, por uma hora (máximo 60). Para cancelar, toque no botão flutuante ou use Cancelar tarefa aqui.\n\nComandos de voz: aprenda que... | estude (ele lê a tela e anota dicas) | esqueça tudo | fique de olho (observa a tela) | pare de observar.\n\nAtenção: as imagens da tela e as dicas aprendidas são enviadas ao Google quando você pede algo. Não use com senha, banco ou conversas privadas. Automatizar jogos online pode violar as regras deles e causar banimento."
-                  atencao.setPadding(0, 16, 0, 24)
-                  raiz.addView(atencao)
+                  tts = TextToSpeech(this, this)
 
-                  val chave = campo("Chave da API do Gemini", prefs.getString("chave", "") ?: "", true)
-                  val modelo = campo("Modelo", prefs.getString("modelo", "gemini-flash-latest") ?: "gemini-flash-latest", false)
-                  raiz.addView(chave)
-                  raiz.addView(modelo)
+                  val root = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      setPadding(dp(18), dp(20), dp(18), dp(14))
+                      setBackgroundColor(fundo)
+                  }
 
-                  raiz.addView(botao("1) Permitir exibir sobre outros apps") {
-                      startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION, Uri.parse("package:" + packageName)))
-                  })
-                  raiz.addView(botao("2) Permitir microfone") {
-                      requestPermissions(arrayOf(Manifest.permission.RECORD_AUDIO), 1)
-                  })
-                  raiz.addView(botao("3) Ativar o Agente em Acessibilidade") {
-                      startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
-                  })
-                  raiz.addView(botao("4) Salvar chave e modelo") {
-                      prefs.edit().putString("chave", chave.text.toString().trim()).putString("modelo", modelo.text.toString().trim()).apply()
-                      avisar("Salvo.")
-                  })
-                  raiz.addView(botao("Cancelar tarefa") {
-                      AgenteService.rodando = false
-                      avisar("Cancelando.")
-                  })
-                  raiz.addView(botao("Mostrar botão flutuante") {
-                      val s = AgenteService.instance
-                      if (s == null) avisar("Ative o Agente em Acessibilidade primeiro.") else s.mostrarBotao()
-                  })
-                  raiz.addView(botao("Esconder botão flutuante") {
-                      AgenteService.instance?.esconderBotao()
-                  })
-                  raiz.addView(botao("Estudar a tela (começa em 5 s)") {
-                      val s = AgenteService.instance
-                      if (s == null) avisar("Ative o Agente em Acessibilidade primeiro.") else s.estudarDepois()
-                  })
-                  raiz.addView(botao("Ligar observação da tela (0,5 s)") {
-                      val s = AgenteService.instance
-                      if (s == null) avisar("Ative o Agente em Acessibilidade primeiro.") else s.iniciarObservacao()
-                  })
-                  raiz.addView(botao("Desligar observação da tela") {
-                      AgenteService.instance?.pararObservacao()
-                  })
-                  raiz.addView(botao("Escolher aparência (foto)") {
-                      val i = Intent(Intent.ACTION_GET_CONTENT)
-                      i.type = "image/*"
-                      startActivityForResult(i, 21)
-                  })
-                  raiz.addView(botao("Voltar à aparência padrão") {
-                      File(filesDir, "avatar.png").delete()
-                      AgenteService.instance?.recriarBotao()
-                      avisar("Pronto.")
-                  })
-                  raiz.addView(botao("Ver o que aprendeu") {
-                      val n = prefs.getString("notas", "") ?: ""
-                      val texto = if (n.isBlank()) "Ainda não aprendi nada." else n
-                      AlertDialog.Builder(this).setTitle("O que o Agente aprendeu").setMessage(texto).setPositiveButton("Ok", null).show()
-                  })
-                  raiz.addView(botao("Esquecer tudo que aprendeu") {
-                      prefs.edit().putString("notas", "").apply()
-                      avisar("Esqueci tudo.")
+                  val header = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      gravity = Gravity.CENTER
+                      setPadding(dp(8), dp(8), dp(8), dp(18))
+                  }
+
+                  header.addView(TextView(this).apply {
+                      text = "AGENTE V8"
+                      textSize = 29f
+                      letterSpacing = 0.12f
+                      typeface = Typeface.DEFAULT_BOLD
+                      gravity = Gravity.CENTER
+                      setTextColor(Color.rgb(164, 153, 255))
                   })
 
-                  val rolagem = ScrollView(this)
-                  rolagem.addView(raiz)
-                  setContentView(rolagem)
+                  header.addView(TextView(this).apply {
+                      text = "INTELIGÊNCIA • MEMÓRIA • APRENDIZADO"
+                      textSize = 10f
+                      letterSpacing = 0.08f
+                      gravity = Gravity.CENTER
+                      setTextColor(Color.rgb(128, 174, 239))
+                  })
+
+                  root.addView(header)
+
+                  val core = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      gravity = Gravity.CENTER
+                      setPadding(dp(12), dp(18), dp(12), dp(18))
+                      background = rounded(
+                          Color.rgb(17, 25, 55),
+                          30,
+                          Color.rgb(65, 83, 158)
+                      )
+                  }
+
+                  val orb = TextView(this).apply {
+                      text = "✦"
+                      textSize = 54f
+                      gravity = Gravity.CENTER
+                      setTextColor(Color.rgb(174, 148, 255))
+                      background = rounded(
+                          Color.rgb(34, 43, 91),
+                          100,
+                          Color.rgb(112, 112, 238)
+                      )
+                      elevation = dp(8).toFloat()
+                  }
+
+                  val orbParams = LinearLayout.LayoutParams(dp(112), dp(112))
+                  orbParams.gravity = Gravity.CENTER
+                  core.addView(orb, orbParams)
+
+                  core.addView(TextView(this).apply {
+                      text = "NÚCLEO DE INTELIGÊNCIA"
+                      textSize = 13f
+                      letterSpacing = 0.08f
+                      typeface = Typeface.DEFAULT_BOLD
+                      gravity = Gravity.CENTER
+                      setTextColor(branco)
+                      setPadding(0, dp(15), 0, dp(5))
+                  })
+
+                  statusText = TextView(this).apply {
+                      text = "●  AGENTE PRONTO"
+                      textSize = 12f
+                      gravity = Gravity.CENTER
+                      setTextColor(Color.rgb(100, 225, 190))
+                  }
+
+                  core.addView(statusText)
+                  root.addView(core)
+
+                  val memoryPanel = panel("MEMÓRIA E APRENDIZADO").apply {
+                      addView(TextView(this@MainActivity).apply {
+                          text = "Ensine procedimentos, registre correções e consulte o histórico salvo neste aparelho."
+                          textSize = 13f
+                          setTextColor(Color.rgb(192, 203, 232))
+                      })
+                  }
+
+                  val memoryButton = actionButton("🧠  ABRIR MEMÓRIA") {
+                      mostrarMemoria()
+                  }
+
+                  memoryPanel.addView(memoryButton)
+                  root.addView(
+                      memoryPanel,
+                      LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          ViewGroup.LayoutParams.WRAP_CONTENT
+                      ).apply {
+                          topMargin = dp(14)
+                      }
+                  )
+
+                  val chatPanel = panel("CONVERSA COM O AGENTE")
+
+                  chat = LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      setPadding(dp(4), dp(4), dp(4), dp(4))
+                  }
+
+                  val chatScroll = ScrollView(this).apply {
+                      isFillViewport = false
+                      addView(chat)
+                  }
+
+                  chatPanel.addView(
+                      chatScroll,
+                      LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          dp(150)
+                      )
+                  )
+
+                  root.addView(
+                      chatPanel,
+                      LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          0,
+                          1f
+                      ).apply {
+                          topMargin = dp(14)
+                      }
+                  )
+
+                  entrada = EditText(this).apply {
+                      hint = "Escreva ou use o microfone..."
+                      setHintTextColor(Color.rgb(135, 147, 181))
+                      setTextColor(branco)
+                      textSize = 15f
+                      setPadding(dp(16), dp(10), dp(16), dp(10))
+                      background = rounded(
+                          Color.rgb(19, 28, 57),
+                          22,
+                          Color.rgb(62, 77, 130)
+                      )
+                  }
+
+                  root.addView(
+                      entrada,
+                      LinearLayout.LayoutParams(
+                          ViewGroup.LayoutParams.MATCH_PARENT,
+                          ViewGroup.LayoutParams.WRAP_CONTENT
+                      ).apply {
+                          topMargin = dp(12)
+                      }
+                  )
+
+                  val sendRow = horizontal()
+
+                  sendRow.addView(
+                      actionButton("➤  ENVIAR") {
+                          val text = entrada.text.toString().trim()
+                          if (text.isNotEmpty()) {
+                              entrada.setText("")
+                              conversar(text)
+                          }
+                      },
+                      weighted()
+                  )
+
+                  sendRow.addView(
+                      actionButton("🎙  FALAR") {
+                          ouvir()
+                      },
+                      weighted()
+                  )
+
+                  root.addView(sendRow)
+
+                  val toolsRow = horizontal()
+
+                  toolsRow.addView(
+                      actionButton("♿ ACESSIBILIDADE") {
+                          startActivity(
+                              Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS)
+                          )
+                      },
+                      weighted()
+                  )
+
+                  toolsRow.addView(
+                      actionButton("⚙ CONFIGURAR IA") {
+                          configurar()
+                      },
+                      weighted()
+                  )
+
+                  root.addView(toolsRow)
+
+                  val floatingRow = horizontal()
+
+                  floatingRow.addView(
+                      actionButton("◉ BOTÃO FLUTUANTE") {
+                          botaoFlutuante()
+                      },
+                      weighted()
+                  )
+
+                  floatingRow.addView(
+                      actionButton("✧ SEIS ANÁLISES") {
+                          Toast.makeText(
+                              this,
+                              "A análise paralela ainda precisa ser implementada.",
+                              Toast.LENGTH_LONG
+                          ).show()
+                      },
+                      weighted()
+                  )
+
+                  root.addView(floatingRow)
+
+                  setContentView(root)
+
+                  mensagem(
+                      "Agente",
+                      "Olá! Configure a chave Gemini para conversar comigo. " +
+                          "A memória local já pode guardar o histórico. " +
+                          "A análise contínua da tela e as seis análises paralelas " +
+                          "ainda não estão implementadas nesta versão."
+                  )
               }
 
-              override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+              private fun panel(titulo: String): LinearLayout {
+                  return LinearLayout(this).apply {
+                      orientation = LinearLayout.VERTICAL
+                      setPadding(dp(14), dp(13), dp(14), dp(13))
+                      background = rounded(
+                          Color.rgb(17, 25, 53),
+                          25,
+                          Color.rgb(48, 64, 112)
+                      )
+
+                      addView(TextView(this@MainActivity).apply {
+                          text = titulo
+                          textSize = 12f
+                          letterSpacing = 0.07f
+                          typeface = Typeface.DEFAULT_BOLD
+                          setTextColor(Color.rgb(160, 169, 255))
+                          setPadding(0, 0, 0, dp(8))
+                      })
+                  }
+              }
+
+              private fun horizontal(): LinearLayout {
+                  return LinearLayout(this).apply {
+                      orientation = LinearLayout.HORIZONTAL
+                  }
+              }
+
+              private fun weighted(): LinearLayout.LayoutParams {
+                  return LinearLayout.LayoutParams(
+                      0,
+                      ViewGroup.LayoutParams.WRAP_CONTENT,
+                      1f
+                  ).apply {
+                      setMargins(dp(3), dp(4), dp(3), dp(4))
+                  }
+              }
+
+              private fun actionButton(
+                  label: String,
+                  action: () -> Unit
+              ): Button {
+                  return Button(this).apply {
+                      text = label
+                      textSize = 11f
+                      isAllCaps = false
+                      minHeight = dp(48)
+                      setTextColor(branco)
+                      background = rounded(azul, 22, roxo)
+                      setPadding(dp(8), dp(5), dp(8), dp(5))
+                      setOnClickListener { action() }
+                  }
+              }
+
+              private fun rounded(
+                  color: Int,
+                  radius: Int,
+                  stroke: Int
+              ): GradientDrawable {
+                  return GradientDrawable().apply {
+                      setColor(color)
+                      cornerRadius = dp(radius).toFloat()
+                      setStroke(dp(1), stroke)
+                  }
+              }
+
+              private fun dp(value: Int): Int {
+                  return (value * resources.displayMetrics.density).toInt()
+              }
+
+              private fun mensagem(autor: String, texto: String) {
+                  runOnUiThread {
+                      chat.addView(TextView(this).apply {
+                          text = "$autor\n$texto"
+                          textSize = 14f
+                          setTextColor(branco)
+                          setPadding(dp(10), dp(8), dp(10), dp(8))
+                          background = rounded(
+                              Color.rgb(22, 32, 66),
+                              18,
+                              Color.rgb(43, 57, 103)
+                          )
+                      })
+
+                      statusText.text = "●  CONVERSA ATUALIZADA"
+                      statusText.setTextColor(Color.rgb(118, 190, 255))
+                  }
+              }
+
+              override fun onInit(status: Int) {
+                  if (status == TextToSpeech.SUCCESS) {
+                      tts.language = Locale("pt", "BR")
+                  }
+              }
+
+              private fun falar(texto: String) {
+                  runOnUiThread {
+                      tts.speak(
+                          texto,
+                          TextToSpeech.QUEUE_FLUSH,
+                          null,
+                          "agente_v8_resposta"
+                      )
+                  }
+              }
+
+              private fun ouvir() {
+                  if (
+                      checkSelfPermission(Manifest.permission.RECORD_AUDIO) !=
+                      PackageManager.PERMISSION_GRANTED
+                  ) {
+                      requestPermissions(
+                          arrayOf(Manifest.permission.RECORD_AUDIO),
+                          100
+                      )
+                      return
+                  }
+
+                  try {
+                      val intent = Intent(
+                          RecognizerIntent.ACTION_RECOGNIZE_SPEECH
+                      ).apply {
+                          putExtra(
+                              RecognizerIntent.EXTRA_LANGUAGE_MODEL,
+                              RecognizerIntent.LANGUAGE_MODEL_FREE_FORM
+                          )
+                          putExtra(
+                              RecognizerIntent.EXTRA_LANGUAGE,
+                              "pt-BR"
+                          )
+                          putExtra(
+                              RecognizerIntent.EXTRA_PROMPT,
+                              "Fale com o Agente V8"
+                          )
+                      }
+
+                      startActivityForResult(intent, 101)
+                  } catch (_: Exception) {
+                      Toast.makeText(
+                          this,
+                          "Reconhecimento de voz indisponível.",
+                          Toast.LENGTH_LONG
+                      ).show()
+                  }
+              }
+
+              @Deprecated("Compatibilidade com reconhecimento de voz")
+              override fun onActivityResult(
+                  requestCode: Int,
+                  resultCode: Int,
+                  data: Intent?
+              ) {
                   super.onActivityResult(requestCode, resultCode, data)
-                  if (requestCode == 21 && resultCode == RESULT_OK) {
-                      val uri = data?.data
-                      if (uri != null) {
-                          try {
-                              val ins = contentResolver.openInputStream(uri)
-                              val op = BitmapFactory.Options()
-                              op.inSampleSize = 2
-                              val bmp = BitmapFactory.decodeStream(ins, null, op)
-                              ins?.close()
-                              if (bmp != null) {
-                                  val m = Math.min(bmp.width, bmp.height)
-                                  val quad = Bitmap.createBitmap(bmp, (bmp.width - m) / 2, (bmp.height - m) / 2, m, m)
-                                  val peq = Bitmap.createScaledBitmap(quad, 256, 256, true)
-                                  FileOutputStream(File(filesDir, "avatar.png")).use { peq.compress(Bitmap.CompressFormat.PNG, 100, it) }
-                                  AgenteService.instance?.recriarBotao()
-                                  avisar("Aparência salva.")
-                              } else {
-                                  avisar("Não consegui usar essa imagem.")
-                              }
-                          } catch (e: Exception) {
-                              avisar("Não consegui usar essa imagem.")
+
+                  if (requestCode == 101 && resultCode == RESULT_OK) {
+                      val text = data
+                          ?.getStringArrayListExtra(
+                              RecognizerIntent.EXTRA_RESULTS
+                          )
+                          ?.firstOrNull()
+
+                      if (!text.isNullOrBlank()) {
+                          conversar(text)
+                      }
+                  }
+              }
+
+              private fun conversar(texto: String) {
+                  mensagem("Você", texto)
+
+                  val key = prefs.getString(
+                      "gemini_api_key",
+                      ""
+                  ).orEmpty()
+
+                  if (key.isBlank()) {
+                      mensagem(
+                          "Agente",
+                          "Configure a chave Gemini para iniciar a conversa."
+                      )
+                      falar("Configure a chave Gemini primeiro.")
+                      return
+                  }
+
+                  statusText.text = "●  PROCESSANDO"
+                  statusText.setTextColor(Color.rgb(255, 203, 115))
+
+                  executor.execute {
+                      try {
+                          val memoria = prefs.getString(
+                              "historico",
+                              ""
+                          ).orEmpty()
+
+                          val prompt = """
+                              Você é o Agente V8, assistente em português brasileiro.
+                              Seja cordial, preciso e honesto sobre suas capacidades.
+                              Não afirme que executou uma ação sem confirmação.
+                              Ajude o usuário a aprender e a desenvolver o aplicativo.
+                              Considere as correções registradas pelo usuário como
+                              orientações para conversas futuras.
+                              Isso não significa treinamento automático dos pesos
+                              do modelo de inteligência artificial.
+                              Histórico local:
+                              ${memoria.takeLast(7000)}
+                              Mensagem atual:
+                              $texto
+                          """.trimIndent()
+
+                          val resposta = consultarGemini(key, prompt)
+
+                          val novoHistorico =
+                              memoria +
+                                  "\nUsuário: $texto\nAgente: $resposta"
+
+                          prefs.edit()
+                              .putString(
+                                  "historico",
+                                  novoHistorico.takeLast(12000)
+                              )
+                              .apply()
+
+                          mensagem("Agente", resposta)
+                          falar(resposta)
+
+                          runOnUiThread {
+                              statusText.text = "●  RESPOSTA CONCLUÍDA"
+                              statusText.setTextColor(
+                                  Color.rgb(100, 225, 190)
+                              )
+                          }
+                      } catch (e: Exception) {
+                          val erro = "Falha na consulta à IA. Verifique " +
+                              "a internet, a chave e o modelo Gemini. " +
+                              (e.message ?: "")
+
+                          mensagem("Sistema", erro)
+
+                          runOnUiThread {
+                              statusText.text = "●  ERRO NA CONSULTA"
+                              statusText.setTextColor(
+                                  Color.rgb(255, 115, 135)
+                              )
                           }
                       }
                   }
               }
 
-              private fun campo(dica: String, valor: String, segredo: Boolean): EditText {
-                  val e = EditText(this)
-                  e.hint = dica
-                  e.setText(valor)
-                  if (segredo) e.inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_VARIATION_PASSWORD
-                  return e
+              private fun consultarGemini(
+                  key: String,
+                  prompt: String
+              ): String {
+                  val url = URL(
+                      "https://generativelanguage.googleapis.com/" +
+                          "v1beta/models/gemini-2.5-flash:generateContent" +
+                          "?key=" + Uri.encode(key)
+                  )
+
+                  val connection = url.openConnection() as HttpURLConnection
+
+                  try {
+                      connection.requestMethod = "POST"
+                      connection.connectTimeout = 20000
+                      connection.readTimeout = 30000
+                      connection.doOutput = true
+
+                      connection.setRequestProperty(
+                          "Content-Type",
+                          "application/json; charset=UTF-8"
+                      )
+
+                      val body = JSONObject()
+                          .put(
+                              "contents",
+                              JSONArray().put(
+                                  JSONObject().put(
+                                      "parts",
+                                      JSONArray().put(
+                                          JSONObject().put("text", prompt)
+                                      )
+                                  )
+                              )
+                          )
+                          .toString()
+
+                      connection.outputStream.use {
+                          it.write(body.toByteArray(Charsets.UTF_8))
+                      }
+
+                      val code = connection.responseCode
+
+                      val stream = if (code in 200..299) {
+                          connection.inputStream
+                      } else {
+                          connection.errorStream
+                      }
+
+                      val response = stream.bufferedReader().use {
+                          it.readText()
+                      }
+
+                      if (code !in 200..299) {
+                          throw IllegalStateException(
+                              "HTTP $code: ${response.take(250)}"
+                          )
+                      }
+
+                      return JSONObject(response)
+                          .getJSONArray("candidates")
+                          .getJSONObject(0)
+                          .getJSONObject("content")
+                          .getJSONArray("parts")
+                          .getJSONObject(0)
+                          .getString("text")
+                  } finally {
+                      connection.disconnect()
+                  }
               }
 
-              private fun botao(texto: String, acao: () -> Unit): Button {
-                  val b = Button(this)
-                  b.text = texto
-                  b.setOnClickListener { acao() }
-                  return b
+              private fun configurar() {
+                  val campo = EditText(this).apply {
+                      hint = "Chave da API Gemini"
+                      setSingleLine(true)
+                      inputType = 129
+                      setText(
+                          prefs.getString("gemini_api_key", "").orEmpty()
+                      )
+                  }
+
+                  AlertDialog.Builder(this)
+                      .setTitle("Configurar inteligência artificial")
+                      .setMessage(
+                          "A chave será guardada localmente no aparelho. " +
+                              "Não compartilhe sua chave."
+                      )
+                      .setView(campo)
+                      .setPositiveButton("Salvar") { _, _ ->
+                          prefs.edit()
+                              .putString(
+                                  "gemini_api_key",
+                                  campo.text.toString().trim()
+                              )
+                              .apply()
+
+                          Toast.makeText(
+                              this,
+                              "Configuração salva.",
+                              Toast.LENGTH_SHORT
+                          ).show()
+                      }
+                      .setNegativeButton("Cancelar", null)
+                      .show()
               }
 
-              private fun avisar(msg: String) {
-                  Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+              private fun mostrarMemoria() {
+                  val campo = EditText(this).apply {
+                      setText(
+                          prefs.getString("historico", "").orEmpty()
+                      )
+                      setTextColor(Color.BLACK)
+                      minLines = 6
+                  }
+
+                  AlertDialog.Builder(this)
+                      .setTitle("Memória local do Agente")
+                      .setMessage(
+                          "Edite o histórico ou registre uma orientação " +
+                              "para conversas futuras."
+                      )
+                      .setView(campo)
+                      .setPositiveButton("Salvar") { _, _ ->
+                          prefs.edit()
+                              .putString(
+                                  "historico",
+                                  campo.text.toString().takeLast(12000)
+                              )
+                              .apply()
+
+                          Toast.makeText(
+                              this,
+                              "Memória salva neste aparelho.",
+                              Toast.LENGTH_SHORT
+                          ).show()
+                      }
+                      .setNeutralButton("Limpar memória") { _, _ ->
+                          prefs.edit()
+                              .remove("historico")
+                              .apply()
+
+                          Toast.makeText(
+                              this,
+                              "Histórico apagado.",
+                              Toast.LENGTH_SHORT
+                          ).show()
+                      }
+                      .setNegativeButton("Fechar", null)
+                      .show()
+              }
+
+              private fun botaoFlutuante() {
+                  if (!Settings.canDrawOverlays(this)) {
+                      startActivity(
+                          Intent(
+                              Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                              Uri.parse("package:$packageName")
+                          )
+                      )
+
+                      Toast.makeText(
+                          this,
+                          "Autorize a sobreposição e toque novamente.",
+                          Toast.LENGTH_LONG
+                      ).show()
+
+                      return
+                  }
+
+                  val wm = getSystemService(WINDOW_SERVICE) as WindowManager
+
+                  val bubble = Button(this).apply {
+                      text = "✦"
+                      textSize = 27f
+                      isAllCaps = false
+                      setTextColor(Color.WHITE)
+                      background = rounded(
+                          Color.rgb(86, 65, 194),
+                          100,
+                          Color.rgb(151, 134, 255)
+                      )
+                      elevation = dp(8).toFloat()
+                  }
+
+                  val params = WindowManager.LayoutParams(
+                      dp(62),
+                      dp(62),
+                      WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+                      WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+                      android.graphics.PixelFormat.TRANSLUCENT
+                  ).apply {
+                      gravity = Gravity.TOP or Gravity.END
+                      x = dp(16)
+                      y = dp(220)
+                  }
+
+                  bubble.setOnClickListener {
+                      val opcoes = arrayOf(
+                          "Abrir Agente V8",
+                          "Falar com o Agente",
+                          "Fechar botão flutuante"
+                      )
+
+                      AlertDialog.Builder(this)
+                          .setTitle("AGENTE V8")
+                          .setItems(opcoes) { _, escolha ->
+                              when (escolha) {
+                                  0 -> {
+                                      startActivity(
+                                          Intent(
+                                              this,
+                                              MainActivity::class.java
+                                          ).addFlags(
+                                              Intent.FLAG_ACTIVITY_NEW_TASK
+                                          )
+                                      )
+                                  }
+
+                                  1 -> {
+                                      startActivity(
+                                          Intent(
+                                              this,
+                                              MainActivity::class.java
+                                          ).addFlags(
+                                              Intent.FLAG_ACTIVITY_NEW_TASK
+                                          )
+                                      )
+                                      Toast.makeText(
+                                          this,
+                                          "Use o botão FALAR na tela do Agente.",
+                                          Toast.LENGTH_LONG
+                                      ).show()
+                                  }
+
+                                  2 -> {
+                                      try {
+                                          wm.removeView(bubble)
+                                      } catch (_: Exception) {
+                                      }
+                                  }
+                              }
+                          }
+                          .show()
+                  }
+
+                  try {
+                      wm.addView(bubble, params)
+
+                      Toast.makeText(
+                          this,
+                          "Botão flutuante criado.",
+                          Toast.LENGTH_SHORT
+                      ).show()
+                  } catch (e: Exception) {
+                      Toast.makeText(
+                          this,
+                          "Não foi possível criar a sobreposição.",
+                          Toast.LENGTH_LONG
+                      ).show()
+                  }
+              }
+
+              override fun onDestroy() {
+                  if (::tts.isInitialized) {
+                      tts.stop()
+                      tts.shutdown()
+                  }
+
+                  executor.shutdownNow()
+                  super.onDestroy()
               }
           }
           EOF
 
-      - name: Compilar o APK
+      - name: Compilar APK
         working-directory: proj
-        run: gradle assembleDebug --no-daemon
+        run: gradle --no-daemon --stacktrace assembleDebug
 
-      - name: Publicar o APK para download
-        uses: softprops/action-gh-release@v2
+      - name: Disponibilizar APK
+        uses: actions/upload-artifact@v4
         with:
-          tag_name: agente-v${{ github.run_number }}
-          name: Agente v${{ github.run_number }}
-          files: proj/app/build/outputs/apk/debug/app-debug.apk
+          name: Agente-V8-APK
+          path: proj/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
